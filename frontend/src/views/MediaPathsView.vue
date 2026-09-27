@@ -368,6 +368,23 @@
                           type="text"
                       />
 
+                      <div class="form-label label-with-help">
+                        <label for="path-power-wait">{{ $t('x-paths-power-wait') }}</label>
+                        <HelpTooltip :text="$t('x-paths-tooltip-power-wait')"/>
+                      </div>
+                      <input
+                          id="path-power-wait"
+                          v-model.number="form.power_wait_timeout_seconds"
+                          :disabled="gateActive"
+                          class="form-input mb-3"
+                          inputmode="numeric"
+                          max="1800"
+                          min="10"
+                          placeholder="300"
+                          step="10"
+                          type="number"
+                      />
+
                       <div class="icon-action-row mb-3">
                         <IconActionButton
                             :disabled="gateActive"
@@ -921,7 +938,10 @@ watch(selectedKey, () => {
 
 function togglePowerSwitch() {
   powerSwitchEnabled.value = !powerSwitchEnabled.value
-  if (!powerSwitchEnabled.value) form.value.power_switch_entity_id = ''
+  if (!powerSwitchEnabled.value) {
+    form.value.power_switch_entity_id = ''
+    form.value.power_wait_timeout_seconds = null
+  }
 }
 
 async function detectPowerSwitches() {

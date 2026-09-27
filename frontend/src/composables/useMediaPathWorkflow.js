@@ -1,6 +1,6 @@
 import {computed, nextTick, ref, watch} from 'vue'
 
-const EMPTY_DRAFT = {name: '', source_path: '', player_path: '', protocol: '', verified: false, power_switch_entity_id: ''}
+const EMPTY_DRAFT = {name: '', source_path: '', player_path: '', protocol: '', verified: false, power_switch_entity_id: '', power_wait_timeout_seconds: null}
 
 // Resolves media_servers.providers[media_servers.active].playback.path_mappings
 // from a full config response — the nested shape that replaced the old flat
@@ -192,6 +192,7 @@ export function useMediaPathWorkflow({
                 protocol,
                 verified: !!row.mapping?.verified,
                 power_switch_entity_id: row.mapping?.power_switch_entity_id || '',
+                power_wait_timeout_seconds: row.mapping?.power_wait_timeout_seconds ?? null,
             }
             form.value = draft
             originalForm.value = {...draft}
@@ -319,6 +320,7 @@ export function useMediaPathWorkflow({
                 protocol: form.value.protocol || currentProtocol.value,
                 verified: form.value.verified,
                 power_switch_entity_id: form.value.power_switch_entity_id || '',
+                power_wait_timeout_seconds: normalizedPowerWaitTimeout(),
             })
             form.value = {...form.value, verified: true}
             delete rowErrors.value[selectedKey.value]
@@ -333,6 +335,12 @@ export function useMediaPathWorkflow({
         }
     }
 
+    // An empty number input yields '' — send null so the backend default applies.
+    function normalizedPowerWaitTimeout() {
+        const value = form.value.power_wait_timeout_seconds
+        return value === '' || value === undefined ? null : value
+    }
+
     // Wake the NAS behind this path (Home Assistant switch) and wait for it,
     // e.g. before browsing its folders from the OPPO.
     async function powerOnSource() {
@@ -342,6 +350,7 @@ export function useMediaPathWorkflow({
                 player_path: form.value.player_path,
                 protocol: form.value.protocol || currentProtocol.value,
                 power_switch_entity_id: form.value.power_switch_entity_id || '',
+                power_wait_timeout_seconds: normalizedPowerWaitTimeout(),
             })
         } finally {
             powerOnLoading.value = false
@@ -416,6 +425,7 @@ export function useMediaPathWorkflow({
     function createEntry(requireVerified) {
         return {
             ...form.value,
+            power_wait_timeout_seconds: normalizedPowerWaitTimeout(),
             protocol: form.value.protocol || currentProtocol.value,
             verified: requireVerified ? true : !!form.value.verified && !formDirty.value,
         }

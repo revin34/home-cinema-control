@@ -99,6 +99,12 @@ class PlaybackStartupOrchestrator:
                 media_source_power_result=media_source_power_result,
             )
 
+        if power_on_result.successful:
+            # The player sat idle while the NAS booted and may be in its
+            # screensaver, which would keep covering the picture once
+            # playback starts.
+            self._wake_player_display()
+
         media_player_start_result = self.start_oppo_playback(
             request=request.media_player_start_request,
             on_waiting=on_waiting,
@@ -108,6 +114,20 @@ class PlaybackStartupOrchestrator:
             output_switch_result=output_switch_result,
             media_player_start_result=media_player_start_result,
             media_source_power_result=media_source_power_result,
+        )
+
+    def _wake_player_display(self) -> None:
+        try:
+            result = self._measure_output_switch_step(
+                "wake_player_display", self._media_player.wake_display
+            )
+        except Exception:
+            logger.exception("Could not wake the player display; continuing.")
+            return
+        logger.info(
+            "Player display wake after media source power-on | status=%s | detail=%s",
+            result.status.value,
+            result.detail,
         )
 
     def _request_media_source_power_on(

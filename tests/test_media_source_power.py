@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 from unittest.mock import patch
 
 from home_cinema_control.devices.home_assistant.client import (
@@ -146,6 +147,21 @@ class HomeAssistantMediaSourcePowerTest(unittest.TestCase):
         self.assertIn("did not come online within 12s", result.detail)
         self.assertGreaterEqual(clock.now, 12)
 
+    def test_wait_uses_the_request_timeout_over_the_default(self):
+        client = FakeHomeAssistant({"switch.nas11": "off"})
+        power, clock = _power(client, probe=lambda server, protocol: False, timeout=300, poll=5)
+        request = MediaSourcePowerRequest(
+            switch_entity_ids=("switch.nas11",),
+            server="nas11.local",
+            network_protocol="nfs",
+            wait_timeout_seconds=20,
+        )
+
+        result = power.wait_until_available(request)
+
+        self.assertIn("within 20s", result.detail)
+        self.assertLess(clock.now, 30)
+
     def test_wait_continues_when_switch_is_on_but_port_is_not_visible_from_hcc(self):
         client = FakeHomeAssistant({"switch.nas11": "on"})
         power, _ = _power(client, probe=lambda server, protocol: False, timeout=10)
@@ -226,6 +242,10 @@ class RecordingPlayer:
     def __init__(self, calls):
         self.calls = calls
 
+    def wake_display(self):
+        self.calls.append("wake_display")
+        return DeviceCommandResult.success()
+
     def start(self, request, *, on_waiting=None):
         self.calls.append("oppo_start")
         return PlayerPlaybackStartResult(
@@ -290,7 +310,9 @@ class StartupOrchestratorMediaSourcePowerTest(unittest.TestCase):
         )
 
         self.assertTrue(result.successful)
-        self.assertEqual(["power_on", "tv_switch", "wait", "oppo_start"], calls)
+        self.assertEqual(
+            ["power_on", "tv_switch", "wait", "wake_display", "oppo_start"], calls
+        )
         self.assertEqual([True], notified)
 
     def test_offline_nas_fails_startup_without_starting_oppo(self):
@@ -331,7 +353,24 @@ class StartupOrchestratorMediaSourcePowerTest(unittest.TestCase):
         result = orchestrator.start_playback(_startup_request())
 
         self.assertTrue(result.successful)
+        # Power-on was not confirmed, so the player display is left alone.
         self.assertEqual(["power_on", "tv_switch", "wait", "oppo_start"], calls)
+
+    def test_display_wake_failure_does_not_block_playback(self):
+        calls = []
+        player = RecordingPlayer(calls)
+        player.wake_display = lambda: (_ for _ in ()).throw(RuntimeError("OPPO busy"))
+        orchestrator = PlaybackStartupOrchestrator(
+            television=RecordingTelevision(calls),
+            av_receiver=None,
+            media_player=player,
+            media_source_power=RecordingMediaSourcePower(calls),
+        )
+
+        result = orchestrator.start_playback(_startup_request())
+
+        self.assertTrue(result.successful)
+        self.assertIn("oppo_start", calls)
 
     def test_path_without_switch_skips_power_management(self):
         calls = []
@@ -391,6 +430,32 @@ class MediaSourcePowerRequestTest(unittest.TestCase):
             ),
             request,
         )
+
+    def test_uses_the_longest_timeout_of_the_matching_mappings(self):
+        request = media_source_power_request(
+            media_path="\\\\nas25\\NAS25\\Peliculas\\Film\\film.mkv",
+            path_mappings=[
+                {"source_path": "\\\\nas25\\NAS25", "power_switch_entity_id": "switch.nas25",
+                 "power_wait_timeout_seconds": 90},
+                {"source_path": "\\\\nas25\\NAS25\\Peliculas", "power_switch_entity_id": "switch.nas25",
+                 "power_wait_timeout_seconds": "180"},
+            ],
+            media_location=self._LOCATION,
+        )
+
+        self.assertEqual(("switch.nas25",), request.switch_entity_ids)
+        self.assertEqual(180.0, request.wait_timeout_seconds)
+
+    def test_blank_timeout_falls_back_to_the_default(self):
+        request = media_source_power_request(
+            media_path="\\\\nas25\\NAS25\\film.mkv",
+            path_mappings=[{"source_path": "\\\\nas25\\NAS25",
+                            "power_switch_entity_id": "switch.nas25",
+                            "power_wait_timeout_seconds": ""}],
+            media_location=self._LOCATION,
+        )
+
+        self.assertIsNone(request.wait_timeout_seconds)
 
     def test_none_when_matching_mapping_has_no_switch(self):
         self.assertIsNone(media_source_power_request(
@@ -503,6 +568,40 @@ class PathsPowerOnRouteTest(unittest.TestCase):
 
         self.assertEqual({"status": "ok"}, resp.json())
         self.assertEqual("switch.nas11", power_on.call_args.args[1]["power_switch_entity_id"])
+
+
+class OppoWakeDisplayTest(unittest.TestCase):
+    def test_wake_display_sends_return_key_and_waits(self):
+        from home_cinema_control.devices.oppo.playback_adapters import OppoMediaPlayerAdapter
+
+        client = unittest.mock.MagicMock()
+        with patch(
+            "home_cinema_control.devices.oppo.playback_adapters.OppoControlApiClient.from_config",
+            return_value=client,
+        ), patch(
+            "home_cinema_control.devices.oppo.playback_adapters.time.sleep"
+        ) as sleep:
+            result = OppoMediaPlayerAdapter({"oppo": {"ip": "172.16.10.31"}}).wake_display()
+
+        self.assertTrue(result.successful)
+        client.send_remote_key.assert_called_once_with("RET")
+        sleep.assert_called_once_with(1.0)
+
+
+class PowerWaitTimeoutCoercionTest(unittest.TestCase):
+    def test_coercion(self):
+        from home_cinema_control.config.models import PathMappingConfig
+
+        def timeout(value):
+            return PathMappingConfig(power_wait_timeout_seconds=value).power_wait_timeout_seconds
+
+        self.assertIsNone(timeout(None))
+        self.assertIsNone(timeout(""))
+        self.assertIsNone(timeout("abc"))
+        self.assertIsNone(timeout(0))
+        self.assertEqual(120.0, timeout("120"))
+        self.assertEqual(10.0, timeout(3))
+        self.assertEqual(1800.0, timeout(99999))
 
 
 if __name__ == "__main__":

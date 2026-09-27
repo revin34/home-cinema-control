@@ -60,7 +60,7 @@ class ConfigSectionSaveTest(unittest.TestCase):
         self.assertEqual("emby", updated["media_servers"]["active"])
         self.assertEqual("new-client", emby["playback"]["hcc_controlled_device"])
         self.assertEqual([{"name": "Movies", "source_path": "", "player_path": "/", "protocol": "", "verified": False,
-              "power_switch_entity_id": ""}],
+              "power_switch_entity_id": "", "power_wait_timeout_seconds": None}],
                          emby["playback"]["path_mappings"])
         self.assertEqual([{"id": "1", "name": "Movies", "active": True}], emby["playback"]["libraries"])
 
@@ -137,7 +137,7 @@ class ConfigSectionSaveTest(unittest.TestCase):
         emby_playback = updated["media_servers"]["providers"]["emby"]["playback"]
         self.assertEqual(
             [{"name": "Movies", "source_path": "", "player_path": "/", "protocol": "", "verified": False,
-              "power_switch_entity_id": ""}],
+              "power_switch_entity_id": "", "power_wait_timeout_seconds": None}],
             emby_playback["path_mappings"],
         )
         self.assertEqual([{"id": "", "name": "Series", "active": True}], emby_playback["libraries"])
@@ -187,7 +187,7 @@ class ConfigSectionSaveTest(unittest.TestCase):
         emby_playback = updated["media_servers"]["providers"]["emby"]["playback"]
         self.assertEqual(
             [{"name": "Movies", "source_path": "/m", "player_path": "/", "protocol": "", "verified": True,
-              "power_switch_entity_id": ""}],
+              "power_switch_entity_id": "", "power_wait_timeout_seconds": None}],
             emby_playback["path_mappings"],
         )
         self.assertEqual([{"id": "1", "name": "Movies", "active": True}], emby_playback["libraries"])
@@ -226,7 +226,7 @@ class ConfigSectionSaveTest(unittest.TestCase):
         emby_playback = updated["media_servers"]["providers"]["emby"]["playback"]
         self.assertEqual(
             [{"name": "Movies", "source_path": "", "player_path": "/", "protocol": "", "verified": False,
-              "power_switch_entity_id": ""}],
+              "power_switch_entity_id": "", "power_wait_timeout_seconds": None}],
             emby_playback["path_mappings"],
         )
         self.assertEqual([{"id": "1", "name": "Movies", "active": True}], emby_playback["libraries"])

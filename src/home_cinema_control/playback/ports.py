@@ -59,6 +59,10 @@ class MediaPlayerPort(MediaPlayerCommandPort, Protocol):
 
     def cleanup_after_playback_finish(self) -> DeviceCommandResult: ...
 
+    def wake_display(self) -> DeviceCommandResult:
+        """Bring the player out of its screensaver before starting playback."""
+        ...
+
 
 class TelevisionOutputPort(Protocol):
     def get_current_app_id(self) -> str | None:

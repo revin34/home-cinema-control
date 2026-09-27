@@ -91,6 +91,8 @@ class MediaSourcePowerRequest:
     switch_entity_ids: tuple[str, ...]
     server: str
     network_protocol: str | None = None
+    # None = use media_source_power.wait_timeout_seconds.
+    wait_timeout_seconds: float | None = None
 
 
 @dataclass(frozen=True)

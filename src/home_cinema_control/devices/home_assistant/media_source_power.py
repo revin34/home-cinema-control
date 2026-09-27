@@ -13,7 +13,10 @@ import socket
 import time
 from collections.abc import Callable
 
-from home_cinema_control.config.models import MediaSourcePowerConfig
+from home_cinema_control.config.models import (
+    MediaSourcePowerConfig,
+    coerce_power_wait_timeout,
+)
 from home_cinema_control.devices.home_assistant.client import (
     HomeAssistantClient,
     HomeAssistantError,
@@ -108,8 +111,9 @@ class HomeAssistantMediaSourcePower:
         )
 
     def wait_until_available(self, request: MediaSourcePowerRequest) -> DeviceCommandResult:
+        timeout = request.wait_timeout_seconds or self._config.wait_timeout_seconds
         started_at = self._monotonic()
-        deadline = started_at + self._config.wait_timeout_seconds
+        deadline = started_at + timeout
         switch_seen_on = False
 
         while True:
@@ -130,7 +134,7 @@ class HomeAssistantMediaSourcePower:
             logger.warning(
                 "Media source switch is on but the share port was not reachable from "
                 "HCC within %.0fs; continuing with OPPO mount | server=%s",
-                self._config.wait_timeout_seconds,
+                timeout,
                 request.server,
             )
             return DeviceCommandResult.success(
@@ -138,8 +142,7 @@ class HomeAssistantMediaSourcePower:
             )
 
         return DeviceCommandResult.failed(
-            f"{request.server} did not come online within "
-            f"{self._config.wait_timeout_seconds:.0f}s."
+            f"{request.server} did not come online within {timeout:.0f}s."
         )
 
     def _any_switch_on(self, request: MediaSourcePowerRequest) -> bool:
@@ -178,6 +181,9 @@ def power_on_media_source_for_mapping(config: dict, mapping: dict) -> DeviceComm
         switch_entity_ids=(switch_entity_id,),
         server=server,
         network_protocol=mapping.get("protocol") or None,
+        wait_timeout_seconds=coerce_power_wait_timeout(
+            mapping.get("power_wait_timeout_seconds")
+        ),
     )
     power_on_result = power.request_power_on(request)
     if power_on_result.status.value == "skipped":

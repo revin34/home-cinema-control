@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from home_cinema_control.devices.oppo.constants import OPPO_TELNET_PORT
@@ -25,6 +26,9 @@ from home_cinema_control.playback.startup.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Time for the OPPO to leave its screensaver before the mount request.
+WAKE_DISPLAY_SETTLE_SECONDS = 1.0
 
 
 def create_oppo_playback_adapter(
@@ -91,6 +95,15 @@ class OppoMediaPlayerAdapter(MediaPlayerPort):
 
     def toggle_play_pause(self) -> DeviceCommandResult:
         return self._send_remote_key("PAU")
+
+    def wake_display(self) -> DeviceCommandResult:
+        # RET (Return) is the one key verified to dismiss the OPPO screensaver;
+        # query commands (QPW) and NOP do not. On the idle home screen it does
+        # nothing, inside a menu it goes back one level.
+        result = self._send_remote_key("RET")
+        if result.successful:
+            time.sleep(WAKE_DISPLAY_SETTLE_SECONDS)
+        return result
 
     def next_track(self) -> DeviceCommandResult:
         return self._send_remote_key("NXT")

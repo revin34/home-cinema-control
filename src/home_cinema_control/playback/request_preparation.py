@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from home_cinema_control.config.models import coerce_power_wait_timeout
 from home_cinema_control.config.manager import (
     active_media_server_config,
     active_media_server_type,
@@ -100,17 +101,27 @@ def media_source_power_request(
     media_location: PlayerMediaFileLocation,
 ) -> MediaSourcePowerRequest | None:
     """The power switches of the mappings serving media_path, if any."""
-    switch_entity_ids = tuple(dict.fromkeys(
-        str(mapping.get("power_switch_entity_id") or "").strip()
+    powered_mappings = [
+        mapping
         for mapping in matching_path_mappings(media_path, path_mappings)
         if str(mapping.get("power_switch_entity_id") or "").strip()
-    ))
-    if not switch_entity_ids:
+    ]
+    if not powered_mappings:
         return None
+    switch_entity_ids = tuple(dict.fromkeys(
+        str(mapping["power_switch_entity_id"]).strip() for mapping in powered_mappings
+    ))
+    # Several matching paths: wait as long as the slowest one allows.
+    timeouts = [
+        timeout
+        for mapping in powered_mappings
+        if (timeout := coerce_power_wait_timeout(mapping.get("power_wait_timeout_seconds")))
+    ]
     return MediaSourcePowerRequest(
         switch_entity_ids=switch_entity_ids,
         server=media_location.content_server,
         network_protocol=media_location.network_protocol,
+        wait_timeout_seconds=max(timeouts) if timeouts else None,
     )
 
 

@@ -6,6 +6,21 @@ from home_cinema_control.media_servers.common.models import (
 )
 
 
+MIN_POWER_WAIT_TIMEOUT_SECONDS = 10.0
+MAX_POWER_WAIT_TIMEOUT_SECONDS = 1800.0
+
+
+def coerce_power_wait_timeout(value) -> float | None:
+    """Blank or invalid means "use the default"; valid values are clamped."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    if seconds != seconds or seconds <= 0:  # NaN or not set
+        return None
+    return min(max(seconds, MIN_POWER_WAIT_TIMEOUT_SECONDS), MAX_POWER_WAIT_TIMEOUT_SECONDS)
+
+
 class PathMappingConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -17,6 +32,14 @@ class PathMappingConfig(BaseModel):
     # Optional Home Assistant switch (or input_boolean) that powers on the
     # server behind this path, e.g. a Wake-on-LAN switch. Empty = never wake.
     power_switch_entity_id: str = ""
+    # How long to wait for that server to boot; None = media_source_power
+    # default. Each NAS boots at its own pace, hence per path.
+    power_wait_timeout_seconds: float | None = None
+
+    @field_validator("power_wait_timeout_seconds", mode="before")
+    @classmethod
+    def _coerce_power_wait_timeout(cls, v):
+        return coerce_power_wait_timeout(v)
 
 
 class AppConfig(BaseModel):

@@ -173,6 +173,8 @@
   "x-paths-tooltip-power-switch": "Home Assistant switch or input_boolean that powers on this path's NAS, e.g. a Wake-on-LAN switch. Before playback, HCC turns it on when the NAS does not answer and waits for the share to become available. Leave empty if this NAS is always on.",
   "x-paths-power-switch": "Power on the NAS with Home Assistant (optional)",
   "x-paths-power-switch-entity": "Switch that powers on the NAS",
+  "x-paths-power-wait": "Maximum boot time (s)",
+  "x-paths-tooltip-power-wait": "How long HCC waits for this NAS to boot before failing. Leave empty to use 300 s. Between 10 and 1800 s.",
   "x-paths-power-switch-detect": "Detect switches",
   "x-paths-power-switch-detecting": "Detecting…",
   "x-paths-power-switch-detected": "{count} switches found.",

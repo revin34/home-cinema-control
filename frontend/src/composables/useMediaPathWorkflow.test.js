@@ -185,7 +185,69 @@ describe('useMediaPathWorkflow media source power switch', () => {
             player_path: '/nas11.miesfera.net/libreria/libreria/series',
             protocol: 'nfs',
             power_switch_entity_id: 'switch.nas11',
+            power_wait_timeout_seconds: null,
         })
         expect(subject.powerOnLoading.value).toBe(false)
+    })
+})
+
+describe('useMediaPathWorkflow NAS boot timeout', () => {
+    function openRow(mapping) {
+        const api = {
+            previewPath: vi.fn(),
+            getPathMappingSuggestions: vi.fn(),
+            testPath: vi.fn().mockResolvedValue({}),
+            navigatePath: vi.fn(),
+            powerOnPath: vi.fn().mockResolvedValue({status: 'ok'}),
+        }
+        const persistRouteMappings = vi.fn(async (mappings) => ({
+            media_servers: {active: 'emby', providers: {emby: {playback: {path_mappings: mappings}}}},
+        }))
+        const subject = workflow({api, persistRouteMappings})
+        subject.initialize(
+            {media_servers: {active: 'emby', providers: {emby: {playback: {path_mappings: [mapping]}}}}},
+            [{library_name: 'Peliculas', source_path: mapping.source_path}],
+        )
+        subject.selectRow(subject.detectedRows.value[0])
+        return {subject, api, persistRouteMappings}
+    }
+
+    const base = {
+        name: 'Peliculas',
+        source_path: '\\\\nas11\\libreria',
+        player_path: '/172.16.10.211/libreria',
+        protocol: 'nfs',
+        verified: true,
+        power_switch_entity_id: 'switch.nas11',
+    }
+
+    it('loads and saves the stored timeout', async () => {
+        const {subject, persistRouteMappings} = openRow({...base, power_wait_timeout_seconds: 120})
+
+        expect(subject.form.value.power_wait_timeout_seconds).toBe(120)
+        subject.form.value.power_wait_timeout_seconds = 240
+        await subject.savePath(false)
+
+        expect(persistRouteMappings.mock.calls[0][0][0].power_wait_timeout_seconds).toBe(240)
+        expect(persistRouteMappings.mock.calls[0][0][0].verified).toBe(true)
+    })
+
+    it('sends null for an empty timeout so the default applies', async () => {
+        const {subject, api, persistRouteMappings} = openRow(base)
+
+        subject.form.value.power_wait_timeout_seconds = ''
+        await subject.powerOnSource()
+        await subject.savePath(false)
+
+        expect(api.powerOnPath.mock.calls[0][0].power_wait_timeout_seconds).toBeNull()
+        expect(persistRouteMappings.mock.calls[0][0][0].power_wait_timeout_seconds).toBeNull()
+    })
+
+    it('sends the timeout with the path test', async () => {
+        const {subject, api} = openRow({...base, power_wait_timeout_seconds: 90})
+
+        await subject.testPath()
+
+        expect(api.testPath.mock.calls[0][0].power_wait_timeout_seconds).toBe(90)
     })
 })
