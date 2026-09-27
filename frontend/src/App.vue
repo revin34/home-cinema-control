@@ -265,7 +265,7 @@ function stepDotColor(status) {
 }
 
 const roomReadinessStatus = computed(() => {
-  const statuses = ['tv', 'av', 'lighting'].map((section) => readiness.value?.[section]?.status || 'disabled')
+  const statuses = ['tv', 'av', 'home_assistant', 'lighting'].map((section) => readiness.value?.[section]?.status || 'disabled')
   if (statuses.some((status) => status === 'incomplete' || status === 'stale')) return 'incomplete'
   if (statuses.includes('verified')) return 'verified'
   if (statuses.includes('configured')) return 'configured'

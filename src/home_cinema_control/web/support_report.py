@@ -48,10 +48,10 @@ def collect_redaction_targets(config: dict) -> dict[str, str]:
     add(config.get("smb", {}).get("username"), "CREDENTIAL")
     add(config.get("smb", {}).get("password"), "CREDENTIAL")
     add(config.get("tv", {}).get("sony_psk"), "CREDENTIAL")
-    add(config.get("lighting", {}).get("home_assistant_token"), "CREDENTIAL")
+    add(config.get("home_assistant", {}).get("token"), "CREDENTIAL")
 
     add(config.get("app", {}).get("update_webhook_url"), "URL")
-    add(config.get("lighting", {}).get("home_assistant_url"), "URL")
+    add(config.get("home_assistant", {}).get("url"), "URL")
 
     providers = config.get("media_servers", {}).get("providers", {}) or {}
     for provider in providers.values():

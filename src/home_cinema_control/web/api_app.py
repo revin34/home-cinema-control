@@ -11,6 +11,7 @@ from home_cinema_control.runtime import configure_logging
 from home_cinema_control.web.api_runtime import WebApiRuntime
 from home_cinema_control.web.av_routes import build_av_router
 from home_cinema_control.web.config_sections import apply_config_section
+from home_cinema_control.web.home_assistant_routes import build_home_assistant_router
 from home_cinema_control.web.lighting_routes import build_lighting_router
 from home_cinema_control.web.media_server_routes import build_media_server_router
 from home_cinema_control.web.migration import (
@@ -207,6 +208,7 @@ def create_api_app(api_runtime: WebApiRuntime) -> FastAPI:
     app.include_router(router)
     app.include_router(build_tv_router(api_runtime))
     app.include_router(build_av_router(api_runtime))
+    app.include_router(build_home_assistant_router(api_runtime))
     app.include_router(build_lighting_router(api_runtime))
     app.include_router(build_oppo_router(api_runtime))
     app.include_router(build_paths_router(api_runtime, media_server_provider_factory))

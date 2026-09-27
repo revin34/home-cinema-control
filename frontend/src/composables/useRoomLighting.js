@@ -1,16 +1,12 @@
-import {computed, nextTick, ref, watch} from 'vue'
+import {computed, ref, watch} from 'vue'
 import {api} from '../api/index.js'
 
 export const LIGHTING_ACTIONS = ['turn_off', 'turn_on', 'none']
-
-// Display-only flag added by the backend sanitizer; never sent back.
-const DISPLAY_ONLY_FIELDS = ['home_assistant_token_configured']
+export const LIGHTING_ENTITY_DOMAINS = ['light', 'switch']
 
 export function emptyLighting() {
     return {
         enabled: false,
-        home_assistant_url: '',
-        home_assistant_token: '',
         entity_ids: [],
         on_playback_start: 'turn_off',
         on_playback_stop: 'turn_on',
@@ -20,39 +16,31 @@ export function emptyLighting() {
 }
 
 export function lightingPayload(lighting) {
-    const payload = {...lighting, entity_ids: [...(lighting.entity_ids || [])]}
-    for (const field of DISPLAY_ONLY_FIELDS) delete payload[field]
-    // An empty token means "keep the stored one": the backend refills it from
-    // secrets.json, so never send a blank value that could look like a reset.
-    if (!String(payload.home_assistant_token || '').trim()) delete payload.home_assistant_token
-    return payload
+    return {...lighting, entity_ids: [...(lighting.entity_ids || [])]}
 }
 
-export function lightingReadiness(lighting, tested = false) {
+export function lightingReadiness(lighting, homeAssistantReady = true) {
     if (!lighting.enabled) return {status: 'disabled', detail: 'Lighting control disabled (optional)'}
-    if (!lighting.home_assistant_url) return {status: 'incomplete', detail: 'Home Assistant URL not set'}
-    if (!lighting.home_assistant_token_configured && !String(lighting.home_assistant_token || '').trim()) {
-        return {status: 'incomplete', detail: 'Home Assistant token not configured'}
-    }
+    if (!homeAssistantReady) return {status: 'incomplete', detail: 'Home Assistant not configured'}
     const count = (lighting.entity_ids || []).length
     if (!count) return {status: 'incomplete', detail: 'No lights selected'}
-    return {status: tested ? 'verified' : 'configured', detail: `Home Assistant · ${count} entities`}
+    return {status: 'configured', detail: `Home Assistant · ${count} entities`}
 }
 
-export function useRoomLighting({configWithSection, saveConfigSection, onReadinessChange}) {
+export function useRoomLighting({
+                                    configWithSection,
+                                    saveConfigSection,
+                                    homeAssistantReady = () => true,
+                                    onReadinessChange,
+                                }) {
     const lighting = ref(emptyLighting())
     const entities = ref([])
     const entityFilter = ref('')
-    const tested = ref(false)
-    const testLoading = ref(false)
     const entitiesLoading = ref(false)
     const switchLoading = ref('')
 
-    const state = computed(() => {
-        const readiness = lightingReadiness(lighting.value, tested.value)
-        if (readiness.status === 'verified') return 'tested'
-        return readiness.status
-    })
+    const readiness = computed(() => lightingReadiness(lighting.value, homeAssistantReady()))
+    const state = computed(() => readiness.value.status)
 
     // Detected entities plus any stored id Home Assistant did not report
     // (renamed/unavailable), so a saved selection is never silently dropped.
@@ -68,29 +56,10 @@ export function useRoomLighting({configWithSection, saveConfigSection, onReadine
             || entity.name.toLowerCase().includes(filter))
     })
 
-    // Only connection settings invalidate a successful test; picking lights
-    // afterwards keeps it (the backend verification fingerprint agrees).
-    watch(
-        () => [
-            lighting.value.enabled,
-            lighting.value.home_assistant_url,
-            lighting.value.home_assistant_token,
-        ].join('|'),
-        () => {
-            tested.value = false
-            onReadinessChange?.(lightingReadiness(lighting.value))
-        },
-    )
-
-    watch(
-        () => (lighting.value.entity_ids || []).join(','),
-        () => onReadinessChange?.(lightingReadiness(lighting.value, tested.value)),
-    )
+    watch(readiness, (value) => onReadinessChange?.(value))
 
     function load(config) {
         lighting.value = {...emptyLighting(), ...(config?.lighting || {})}
-        lighting.value.home_assistant_token = ''
-        tested.value = false
     }
 
     function isSelected(entityId) {
@@ -108,30 +77,10 @@ export function useRoomLighting({configWithSection, saveConfigSection, onReadine
         return configWithSection('lighting', lightingPayload(lighting.value))
     }
 
-    function applySavedLighting(savedLighting) {
-        lighting.value = {...emptyLighting(), ...(savedLighting || {}), home_assistant_token: ''}
-    }
-
-    async function testConnection() {
-        testLoading.value = true
-        try {
-            const result = await api.testLightingConnection(await submittedConfig())
-            if (result?.lighting) applySavedLighting(result.lighting)
-            // applySavedLighting retriggers the watcher that resets `tested`;
-            // flip it after that pending reset has run.
-            await nextTick()
-            tested.value = true
-            onReadinessChange?.(lightingReadiness(lighting.value, true))
-            return result
-        } finally {
-            testLoading.value = false
-        }
-    }
-
     async function detectEntities() {
         entitiesLoading.value = true
         try {
-            const result = await api.getLightingEntities(await submittedConfig())
+            const result = await api.getHomeAssistantEntities(await submittedConfig(), LIGHTING_ENTITY_DOMAINS)
             entities.value = result?.entities || []
             return entities.value
         } finally {
@@ -153,11 +102,7 @@ export function useRoomLighting({configWithSection, saveConfigSection, onReadine
 
     async function save() {
         const savedConfig = await saveConfigSection('lighting', lightingPayload(lighting.value))
-        const wasTested = tested.value
-        applySavedLighting(savedConfig?.lighting)
-        await nextTick()
-        tested.value = wasTested
-        onReadinessChange?.(lightingReadiness(lighting.value, wasTested))
+        lighting.value = {...emptyLighting(), ...(savedConfig?.lighting || {})}
         return savedConfig
     }
 
@@ -167,14 +112,11 @@ export function useRoomLighting({configWithSection, saveConfigSection, onReadine
         entityFilter,
         entityOptions,
         state,
-        tested,
-        testLoading,
         entitiesLoading,
         switchLoading,
         load,
         isSelected,
         toggleEntity,
-        testConnection,
         detectEntities,
         switchLights,
         save,

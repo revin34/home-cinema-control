@@ -449,6 +449,48 @@
             </div>
           </aside>
 
+          <!-- Home Assistant connection -->
+          <section :class="roomAccentClass(homeAssistantState)" class="panel room-device-card">
+            <div class="panel-head room-card-head">
+              <div>
+                <h2 class="panel-title label-with-help">
+                  <House :size="13" :stroke-width="2.3"/>
+                  {{ $t('x-ha-title') }}
+                  <HelpTooltip :text="$t('x-ha-tooltip-section')"/>
+                </h2>
+                <p class="room-card-sub">{{ $t('x-ha-card-subtitle') }}</p>
+              </div>
+              <div class="room-card-controls">
+                <span :class="['room-state', roomStateClass(homeAssistantState)]">{{ roomStateLabel(homeAssistantState) }}</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="form-label label-with-help">
+                <label for="ha-url">{{ $t('x-ha-url') }}</label>
+                <HelpTooltip :text="$t('x-ha-tooltip-url')"/>
+              </div>
+              <input id="ha-url" v-model.trim="homeAssistant.url" autocomplete="off"
+                     class="form-input mb-3" placeholder="http://homeassistant.local:8123" type="url"/>
+
+              <div class="form-label label-with-help">
+                <label for="ha-token">{{ $t('x-ha-token') }}</label>
+                <HelpTooltip :text="$t('x-ha-tooltip-token')"/>
+              </div>
+              <input id="ha-token" v-model="homeAssistant.token" autocomplete="off"
+                     class="form-input mb-1" type="password"/>
+              <p v-if="homeAssistant.token_configured" class="section-hint mb-4">
+                {{ $t('x-ha-token-configured') }}
+              </p>
+
+              <div class="room-card-actions">
+                <button :disabled="homeAssistantTestLoading" class="btn-ghost" @click="testHomeAssistant">
+                  {{ homeAssistantTestLoading ? $t('x-common-testing') : $t('x-ha-test-connection') }}
+                </button>
+                <button class="btn-ghost" @click="saveHomeAssistant">{{ $t('x-ha-save') }}</button>
+              </div>
+            </div>
+          </section>
+
           <!-- Lighting section -->
           <section :class="roomAccentClass(lightingState)" class="panel room-device-card">
             <div class="panel-head room-card-head">
@@ -473,28 +515,9 @@
               </div>
             </div>
             <div v-if="lighting.enabled" class="panel-body">
-              <div class="form-label label-with-help">
-                <label for="lighting-ha-url">{{ $t('x-lighting-ha-url') }}</label>
-                <HelpTooltip :text="$t('x-lighting-tooltip-ha-url')"/>
-              </div>
-              <input id="lighting-ha-url" v-model.trim="lighting.home_assistant_url" autocomplete="off"
-                     class="form-input mb-3" placeholder="http://homeassistant.local:8123" type="url"/>
-
-              <div class="form-label label-with-help">
-                <label for="lighting-ha-token">{{ $t('x-lighting-ha-token') }}</label>
-                <HelpTooltip :text="$t('x-lighting-tooltip-ha-token')"/>
-              </div>
-              <input id="lighting-ha-token" v-model="lighting.home_assistant_token" autocomplete="off"
-                     class="form-input mb-1" type="password"/>
-              <p v-if="lighting.home_assistant_token_configured" class="section-hint mb-4">
-                {{ $t('x-lighting-ha-token-configured') }}
+              <p v-if="!homeAssistantConfigured" class="section-hint mb-4" style="color:var(--status-warning)">
+                {{ $t('x-lighting-needs-home-assistant') }}
               </p>
-
-              <div class="mb-4">
-                <button :disabled="lightingTestLoading" class="btn-ghost" @click="testLighting">
-                  {{ lightingTestLoading ? $t('x-common-testing') : $t('x-lighting-test-connection') }}
-                </button>
-              </div>
 
               <div class="form-label label-with-help">
                 <span>{{ $t('x-lighting-entities') }}</span>
@@ -502,6 +525,7 @@
               </div>
               <div class="icon-action-row mb-3">
                 <IconActionButton
+                    :disabled="!homeAssistantConfigured"
                     :label="$t('x-lighting-action-detect-entities')"
                     :loading="lightingEntitiesLoading"
                     :loading-label="$t('x-lighting-detecting-entities')"
@@ -556,14 +580,14 @@
 
               <div class="icon-action-row mb-4">
                 <IconActionButton
-                    :disabled="!lighting.entity_ids.length"
+                    :disabled="!homeAssistantConfigured || !lighting.entity_ids.length"
                     :label="$t('x-lighting-action-turn-on')"
                     :loading="lightingSwitchLoading === 'turn_on'"
                     icon="power-on"
                     @click="switchLighting('turn_on')"
                 />
                 <IconActionButton
-                    :disabled="!lighting.entity_ids.length"
+                    :disabled="!homeAssistantConfigured || !lighting.entity_ids.length"
                     :label="$t('x-lighting-action-turn-off')"
                     :loading="lightingSwitchLoading === 'turn_off'"
                     icon="power-off"
@@ -592,7 +616,7 @@
 <script setup>
 import {computed, nextTick, onMounted, ref, watch} from 'vue'
 import {useI18n} from 'vue-i18n'
-import {Info, Lightbulb, Speaker, Tv} from '@lucide/vue'
+import {House, Info, Lightbulb, Speaker, Tv} from '@lucide/vue'
 import {api} from '../api/index.js'
 import heroBg from '../assets/backgrounds/bg-sala.png'
 import {useToast} from '../composables/useToast.js'
@@ -607,6 +631,7 @@ import {useMediaServerBrand} from '../composables/useMediaServerBrand.js'
 import {useActiveMediaServer} from '../composables/useActiveMediaServer.js'
 import {patchSetupReadiness} from '../composables/useSetupReadiness.js'
 import {LIGHTING_ACTIONS, useRoomLighting} from '../composables/useRoomLighting.js'
+import {useHomeAssistant} from '../composables/useHomeAssistant.js'
 
 const {t} = useI18n()
 const toast = useToast()
@@ -1043,6 +1068,39 @@ async function saveAv() {
   }
 }
 
+/* Home Assistant state */
+const {
+  homeAssistant,
+  configured: homeAssistantConfigured,
+  state: homeAssistantState,
+  testLoading: homeAssistantTestLoading,
+  load: loadHomeAssistant,
+  testConnection: testHomeAssistantConnection,
+  save: saveHomeAssistantSection,
+} = useHomeAssistant({
+  configWithSection,
+  saveConfigSection,
+  onReadinessChange: (readiness) => patchRoomReadiness('home_assistant', readiness),
+})
+
+async function testHomeAssistant() {
+  try {
+    await testHomeAssistantConnection()
+    toast.success(t('x-ha-connection-ok'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
+async function saveHomeAssistant() {
+  try {
+    await saveHomeAssistantSection()
+    toast.success(t('x-common-saved'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
 /* Lighting state */
 const {
   lighting,
@@ -1050,34 +1108,24 @@ const {
   entityFilter: lightingEntityFilter,
   entityOptions: lightingEntityOptions,
   state: lightingState,
-  testLoading: lightingTestLoading,
   entitiesLoading: lightingEntitiesLoading,
   switchLoading: lightingSwitchLoading,
   load: loadLighting,
   isSelected: isLightingEntitySelected,
   toggleEntity: toggleLightingEntity,
-  testConnection: testLightingConnection,
   detectEntities: detectLightingEntitiesRequest,
   switchLights,
   save: saveLightingSection,
 } = useRoomLighting({
   configWithSection,
   saveConfigSection,
+  homeAssistantReady: () => homeAssistantConfigured.value,
   onReadinessChange: (readiness) => patchRoomReadiness('lighting', readiness),
 })
 
 const lightingActionOptions = computed(() =>
     LIGHTING_ACTIONS.map((action) => ({value: action, label: t(`x-lighting-action-${action}`)}))
 )
-
-async function testLighting() {
-  try {
-    await testLightingConnection()
-    toast.success(t('x-lighting-connection-ok'))
-  } catch (e) {
-    toast.error(e.message)
-  }
-}
 
 async function detectLightingEntities() {
   try {
@@ -1115,6 +1163,7 @@ onMounted(async () => {
     originalTv.value = {...(data.tv || {})}
     av.value = {...(data.av || {})}
     originalAv.value = {...(data.av || {})}
+    loadHomeAssistant(data)
     loadLighting(data)
     originalRoomReadiness.value = {
       tv: data.config_readiness?.tv || null,

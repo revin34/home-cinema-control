@@ -12,6 +12,7 @@ def compute_config_readiness(config: dict) -> dict:
         "media_paths": _media_paths_readiness(config),
         "tv": _tv_readiness(config),
         "av": _av_readiness(config),
+        "home_assistant": _home_assistant_readiness(config),
         "lighting": _lighting_readiness(config),
     }
 
@@ -83,21 +84,33 @@ def _av_readiness(config: dict) -> dict:
     return {"status": "incomplete", "detail": "Model not selected"}
 
 
+def home_assistant_configured(config: dict) -> bool:
+    home_assistant = config.get("home_assistant") or {}
+    return bool(home_assistant.get("url")) and bool(
+        home_assistant.get("token_configured")
+        or str(home_assistant.get("token") or "").strip()
+    )
+
+
+def _home_assistant_readiness(config: dict) -> dict:
+    home_assistant = config.get("home_assistant") or {}
+    if not home_assistant.get("url"):
+        return {"status": "disabled", "detail": "Home Assistant not configured (optional)"}
+    if not home_assistant_configured(config):
+        return {"status": "incomplete", "detail": "Home Assistant token not configured"}
+    return {
+        "status": verified_status(config, "home_assistant"),
+        "detail": home_assistant["url"],
+    }
+
+
 def _lighting_readiness(config: dict) -> dict:
     lighting = config.get("lighting") or {}
     if not lighting.get("enabled", False):
         return {"status": "disabled", "detail": "Lighting control disabled (optional)"}
-    if not lighting.get("home_assistant_url"):
-        return {"status": "incomplete", "detail": "Home Assistant URL not set"}
-    if not (
-        lighting.get("home_assistant_token_configured")
-        or str(lighting.get("home_assistant_token") or "").strip()
-    ):
-        return {"status": "incomplete", "detail": "Home Assistant token not configured"}
+    if not home_assistant_configured(config):
+        return {"status": "incomplete", "detail": "Home Assistant not configured"}
     entity_ids = [e for e in lighting.get("entity_ids") or [] if str(e).strip()]
     if not entity_ids:
         return {"status": "incomplete", "detail": "No lights selected"}
-    return {
-        "status": verified_status(config, "lighting"),
-        "detail": f"Home Assistant · {len(entity_ids)} entities",
-    }
+    return {"status": "configured", "detail": f"Home Assistant · {len(entity_ids)} entities"}

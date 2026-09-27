@@ -127,25 +127,32 @@ class SmbConfig(BaseModel):
 MAX_LIGHTING_FADE_SECONDS = 300.0
 
 
-class LightingConfig(BaseModel):
-    """Room lighting driven through Home Assistant during playback.
+class HomeAssistantConfig(BaseModel):
+    """Connection to the user's Home Assistant, shared by every HA feature.
 
-    home_assistant_token is deliberately not a field here: it is a secret,
-    merged in at runtime via SECRET_PATHS/secrets.json, never part of the
-    persisted config.json schema.
+    token is deliberately not a field here: it is a secret, merged in at
+    runtime via SECRET_PATHS/secrets.json, never part of the persisted
+    config.json schema.
     """
 
     model_config = ConfigDict(extra="allow")
 
+    url: str = ""
+    timeout_seconds: float = 5.0
+
+
+class LightingConfig(BaseModel):
+    """Room lighting driven through Home Assistant during playback."""
+
+    model_config = ConfigDict(extra="allow")
+
     enabled: bool = False
-    home_assistant_url: str = ""
     entity_ids: list[str] = Field(default_factory=list)
     on_playback_start: str = "turn_off"
     on_playback_stop: str = "turn_on"
     # Home Assistant light transition, in seconds; 0 switches instantly.
     fade_out_seconds: float = 0.0
     fade_in_seconds: float = 0.0
-    timeout_seconds: float = 5.0
 
     @field_validator("fade_out_seconds", "fade_in_seconds", mode="before")
     @classmethod
@@ -245,5 +252,6 @@ class HccConfig(BaseModel):
     oppo: OppoConfig = Field(default_factory=OppoConfig)
     media_servers: MediaServersConfig = Field(default_factory=MediaServersConfig)
     smb: SmbConfig = Field(default_factory=SmbConfig)
+    home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     lighting: LightingConfig = Field(default_factory=LightingConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
