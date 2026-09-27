@@ -336,6 +336,43 @@
                     </div>
                   </div>
 
+                  <div class="power-switch-block mt-3">
+                    <div class="form-label label-with-help">
+                      <label for="path-power-switch">{{ $t('x-paths-power-switch') }}</label>
+                      <HelpTooltip :text="$t('x-paths-tooltip-power-switch')"/>
+                    </div>
+                    <template v-if="homeAssistantReady">
+                      <div class="route-input-row">
+                        <input
+                            id="path-power-switch"
+                            v-model.trim="form.power_switch_entity_id"
+                            :disabled="gateActive"
+                            :placeholder="$t('x-paths-power-switch-placeholder')"
+                            autocomplete="off"
+                            class="form-input route-input mono"
+                            list="path-power-switch-options"
+                            type="text"
+                        />
+                        <IconActionButton
+                            :disabled="gateActive || !form.power_switch_entity_id || !form.player_path"
+                            :label="$t('x-paths-power-on')"
+                            :loading="powerOnLoading"
+                            :loading-label="$t('x-paths-powering-on')"
+                            compact
+                            icon="power-on"
+                            @click="powerOnMediaSource"
+                        />
+                      </div>
+                      <datalist id="path-power-switch-options">
+                        <option v-for="entity in powerSwitches" :key="entity.entity_id" :value="entity.entity_id">
+                          {{ entity.name }} · {{ entity.state }}
+                        </option>
+                      </datalist>
+                      <p class="section-hint mt-2">{{ $t('x-paths-power-switch-hint') }}</p>
+                    </template>
+                    <p v-else class="section-hint">{{ $t('x-paths-power-switch-needs-ha') }}</p>
+                  </div>
+
                   <div v-if="showNav" class="folder-nav mt-3">
                     <div v-if="navLoading" class="folder-loading">
                       <span class="folder-loading-spinner"></span>{{ $t('x-paths-nav-loading') }}
@@ -534,6 +571,7 @@ import {useConfigSectionSave} from '../composables/useConfigSectionSave.js'
 import {useDiagnosticText} from '../composables/useDiagnosticText.js'
 import {useMediaServerBrand} from '../composables/useMediaServerBrand.js'
 import {useActiveMediaServer} from '../composables/useActiveMediaServer.js'
+import {homeAssistantConfigured} from '../composables/useHomeAssistant.js'
 
 const {t} = useI18n()
 const toast = useToast()
@@ -589,6 +627,7 @@ const {
   navError,
   playerSuggestion,
   testLoading,
+  powerOnLoading,
   smbEnabled,
   canTest,
   canSaveDraft,
@@ -601,6 +640,7 @@ const {
   newManualMapping,
   acceptPlayerSuggestion,
   testPath: runPathTest,
+  powerOnSource,
   savePath: persistPath,
   deleteCurrentMapping: removeCurrentMapping,
   saveNetworkAccess,
@@ -841,6 +881,30 @@ async function clearCredentials() {
   }
 }
 
+const homeAssistantReady = computed(() => homeAssistantConfigured(fullConfig.value?.home_assistant))
+const powerSwitches = ref([])
+
+// Suggestions for the power-switch field; failing to list them (Home
+// Assistant down) only loses the suggestions, the field still works.
+async function loadPowerSwitches(config) {
+  if (!homeAssistantConfigured(config?.home_assistant)) return
+  try {
+    const result = await api.getHomeAssistantEntities(config, ['switch', 'input_boolean'])
+    powerSwitches.value = result?.entities || []
+  } catch {
+    powerSwitches.value = []
+  }
+}
+
+async function powerOnMediaSource() {
+  try {
+    await powerOnSource()
+    toast.success(t('x-paths-powered-on'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -852,6 +916,7 @@ onMounted(async () => {
     preMountSmb.value = data.oppo?.pre_mount_smb ?? false
     const [, detectedLibraries] = await Promise.all([loadLibraries(), fetchDetectedLibraries()])
     initialize(data, detectedLibraries)
+    loadPowerSwitches(data)
   } finally {
     loading.value = false
   }
@@ -1494,6 +1559,11 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
+}
+
+.power-switch-block {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .route-rails {

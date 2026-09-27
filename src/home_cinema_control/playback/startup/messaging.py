@@ -85,6 +85,11 @@ class PlaybackStartupMessagingService:
         """Touchpoint 2: sent once, before media path resolution begins."""
         self._guarded(self._locating_unguarded)
 
+    def media_source_powering_on(self) -> None:
+        """Sent once, only when HCC had to power on the library server: the
+        wait that follows can take minutes, so say why up front."""
+        self._guarded(self._media_source_powering_on_unguarded)
+
     def notify_waiting(self, attempt: int) -> None:
         """Touchpoints 3 & 5: first call sends 'starting'; later calls send the
         'still with you' safety net once real elapsed time crosses the threshold.
@@ -108,6 +113,9 @@ class PlaybackStartupMessagingService:
 
     def _locating_unguarded(self) -> None:
         self._send_gated(self._lang["msg-startup-locating"])
+
+    def _media_source_powering_on_unguarded(self) -> None:
+        self._send(self._lang["msg-startup-powering-on-media-source"])
 
     def _notify_waiting_unguarded(self) -> None:
         if self._waiting_started_at is None:

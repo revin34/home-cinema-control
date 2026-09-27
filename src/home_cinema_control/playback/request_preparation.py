@@ -11,11 +11,15 @@ from home_cinema_control.media_servers.common.playback_source import (
     MediaServerPlaybackSource,
 )
 from home_cinema_control.playback.intent import PlaybackIntent
-from home_cinema_control.playback.media_location import resolve_player_media_file_location
+from home_cinema_control.playback.media_location import (
+    matching_path_mappings,
+    resolve_player_media_file_location,
+)
 from home_cinema_control.devices.tv.models import TvInputTarget
 from home_cinema_control.playback.startup.completion import PlayMediaItemRequest
 from home_cinema_control.playback.startup.models import (
     MediaPlayerStartRequest,
+    MediaSourcePowerRequest,
     PlaybackOutputSwitchRequest,
     PlayerMediaFileLocation,
 )
@@ -38,6 +42,7 @@ class PreparedPlaybackRequests:
     output_switch_request: PlaybackOutputSwitchRequest
     media_player_start_request: MediaPlayerStartRequest
     startup_completion_request: PlayMediaItemRequest
+    media_source_power_request: MediaSourcePowerRequest | None = None
 
 
 def prepare_playback_requests(
@@ -48,11 +53,14 @@ def prepare_playback_requests(
     previous_tv_app_id_override: str | None,
 ) -> PreparedPlaybackRequests:
     """Translate config, selected media item, and playback intent into requests."""
-    path_mappings = active_media_server_config(config).playback.path_mappings
+    path_mappings = [
+        mapping.model_dump()
+        for mapping in active_media_server_config(config).playback.path_mappings
+    ]
     media_location = resolve_player_media_file_location(
         emby_media_path=item_info.path,
         playback_file_format=item_info.container,
-        path_mappings=[mapping.model_dump() for mapping in path_mappings],
+        path_mappings=path_mappings,
     )
     output_switch_request = _output_switch_request(
         config,
@@ -77,6 +85,32 @@ def prepare_playback_requests(
         output_switch_request=output_switch_request,
         media_player_start_request=media_player_start_request,
         startup_completion_request=startup_completion_request,
+        media_source_power_request=media_source_power_request(
+            media_path=item_info.path,
+            path_mappings=path_mappings,
+            media_location=media_location,
+        ),
+    )
+
+
+def media_source_power_request(
+    *,
+    media_path: str,
+    path_mappings: list[dict[str, Any]],
+    media_location: PlayerMediaFileLocation,
+) -> MediaSourcePowerRequest | None:
+    """The power switches of the mappings serving media_path, if any."""
+    switch_entity_ids = tuple(dict.fromkeys(
+        str(mapping.get("power_switch_entity_id") or "").strip()
+        for mapping in matching_path_mappings(media_path, path_mappings)
+        if str(mapping.get("power_switch_entity_id") or "").strip()
+    ))
+    if not switch_entity_ids:
+        return None
+    return MediaSourcePowerRequest(
+        switch_entity_ids=switch_entity_ids,
+        server=media_location.content_server,
+        network_protocol=media_location.network_protocol,
     )
 
 

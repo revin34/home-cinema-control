@@ -50,6 +50,25 @@ def diagnose_startup_result(
 
     from home_cinema_control.playback.startup.models import DeviceCommandStatus
 
+    media_source_power = startup_result.media_source_power_result
+    if media_source_power.status == DeviceCommandStatus.FAILED:
+        return PlaybackDiagnostic(
+            code="MEDIA_SOURCE_POWER_ON_FAILED",
+            severity="error",
+            component="media_source",
+            operation="media_source_power_on",
+            reason=(
+                "The library server did not come online: "
+                f"{media_source_power.detail or 'unknown error'}"
+            ),
+            suggestion=(
+                "Check the power switch configured for this path in Media Paths, that "
+                "Home Assistant can turn it on, and that the server finishes booting "
+                "within media_source_power.wait_timeout_seconds."
+            ),
+            details={"detail": media_source_power.detail},
+        )
+
     output_switch = startup_result.output_switch_result
 
     if output_switch.tv_input_result.status == DeviceCommandStatus.FAILED:

@@ -80,19 +80,39 @@ class MediaPlayerStartRequest:
 
 
 @dataclass(frozen=True)
+class MediaSourcePowerRequest:
+    """Wake the server behind the media path before the OPPO mounts it.
+
+    switch_entity_ids are the power switches of every path mapping that
+    matched the media path; server/network_protocol say where the share
+    must become reachable.
+    """
+
+    switch_entity_ids: tuple[str, ...]
+    server: str
+    network_protocol: str | None = None
+
+
+@dataclass(frozen=True)
 class PlaybackStartupRequest:
     output_switch_request: PlaybackOutputSwitchRequest
     media_player_start_request: MediaPlayerStartRequest
+    media_source_power_request: MediaSourcePowerRequest | None = None
 
 
 @dataclass(frozen=True)
 class PlaybackStartupResult:
     output_switch_result: PlaybackOutputSwitchResult
     media_player_start_result: PlayerPlaybackStartResult
+    media_source_power_result: DeviceCommandResult = DeviceCommandResult(
+        status=DeviceCommandStatus.SKIPPED,
+        detail="No media source power switch configured.",
+    )
 
     @property
     def successful(self) -> bool:
         return (
-            self.output_switch_result.successful
+            self.media_source_power_result.status != DeviceCommandStatus.FAILED
+            and self.output_switch_result.successful
             and self.media_player_start_result.successful
         )

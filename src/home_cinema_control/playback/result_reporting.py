@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 
 from home_cinema_control.playback.intent import PlaybackOrigin
+from home_cinema_control.playback.startup.models import (
+    DeviceCommandResult,
+    DeviceCommandStatus,
+)
 from home_cinema_control.playback.notification_sender import (
     PlaybackStartMessages,
     send_playback_message,
@@ -33,6 +37,9 @@ def report_orchestration_result(
             session_id=session_id,
             media_location=media_location,
             oppo_playback_start_result=oppo_playback_start_result,
+            media_source_power_result=(
+                playback_orchestration_result.startup_result.media_source_power_result
+            ),
             messages=messages,
             movie=movie,
         )
@@ -70,10 +77,18 @@ def _notify_startup_failure(
     session_id: str | None,
     media_location,
     oppo_playback_start_result,
+    media_source_power_result: DeviceCommandResult,
     messages: PlaybackStartMessages,
     movie: str,
 ) -> None:
-    if not oppo_playback_start_result.media_mounted:
+    if media_source_power_result.status == DeviceCommandStatus.FAILED:
+        error_message = (
+            messages.error_media_source_offline
+            + media_location.content_server
+            + " - info:"
+            + str(media_source_power_result.detail)
+        )
+    elif not oppo_playback_start_result.media_mounted:
         error_message = (
             messages.error_mount
             + media_location.content_server

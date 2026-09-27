@@ -14,6 +14,9 @@ class PathMappingConfig(BaseModel):
     player_path: str = "/"
     protocol: str = ""
     verified: bool = False
+    # Optional Home Assistant switch (or input_boolean) that powers on the
+    # server behind this path, e.g. a Wake-on-LAN switch. Empty = never wake.
+    power_switch_entity_id: str = ""
 
 
 class AppConfig(BaseModel):
@@ -141,6 +144,15 @@ class HomeAssistantConfig(BaseModel):
     timeout_seconds: float = 5.0
 
 
+class MediaSourcePowerConfig(BaseModel):
+    """How long playback waits for a powered-off media server to come online."""
+
+    model_config = ConfigDict(extra="allow")
+
+    wait_timeout_seconds: float = 300.0
+    poll_interval_seconds: float = 3.0
+
+
 class LightingConfig(BaseModel):
     """Room lighting driven through Home Assistant during playback."""
 
@@ -254,4 +266,5 @@ class HccConfig(BaseModel):
     smb: SmbConfig = Field(default_factory=SmbConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     lighting: LightingConfig = Field(default_factory=LightingConfig)
+    media_source_power: MediaSourcePowerConfig = Field(default_factory=MediaSourcePowerConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)

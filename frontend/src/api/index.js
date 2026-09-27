@@ -99,6 +99,7 @@ export const api = {
     refreshPaths: () => request('GET', '/paths/refresh'),
     previewPath: (pathData) => request('POST', '/paths/preview', pathData),
     testPath: (pathData) => request('POST', '/paths/test', pathData),
+    powerOnPath: (pathData) => request('POST', '/paths/power-on', pathData),
     navigatePath: (path, protocol) => request('POST', '/paths/navigate', {path, protocol}),
 
     // readiness

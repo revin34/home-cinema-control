@@ -12,6 +12,7 @@ from home_cinema_control.playback.player_state import (
 from home_cinema_control.playback.startup.models import (
     DeviceCommandResult,
     DeviceCommandStatus,
+    MediaSourcePowerRequest,
     PlaybackOutputSwitchRequest,
     PlaybackOutputSwitchResult,
     PlaybackStartupRequest,
@@ -21,6 +22,7 @@ from home_cinema_control.playback.startup.models import (
 from home_cinema_control.playback.ports import (
     AvReceiverOutputPort,
     MediaPlayerPort,
+    MediaSourcePowerPort,
     TelevisionOutputPort,
 )
 
@@ -34,17 +36,29 @@ class PlaybackStartupOrchestrator:
             television: TelevisionOutputPort | None,
             av_receiver: AvReceiverOutputPort | None,
         media_player: MediaPlayerPort,
+        media_source_power: MediaSourcePowerPort | None = None,
     ) -> None:
         self._television = television
         self._av_receiver = av_receiver
         self._media_player = media_player
+        self._media_source_power = media_source_power
 
     def start_playback(
         self,
         request: PlaybackStartupRequest,
         *,
         on_waiting: Callable[[int], None] | None = None,
+        on_media_source_powering_on: Callable[[], None] | None = None,
     ) -> PlaybackStartupResult:
+        # Ask for the NAS first so it boots while the TV and AV switch over;
+        # only the OPPO mount has to wait for it.
+        power_on_result = self._measure_output_switch_step(
+            "request_media_source_power_on",
+            lambda: self._request_media_source_power_on(request.media_source_power_request),
+        )
+        if power_on_result.successful and on_media_source_powering_on is not None:
+            on_media_source_powering_on()
+
         output_switch_result = self.switch_playback_output_to_oppo(
             request.output_switch_request
         )
@@ -57,6 +71,34 @@ class PlaybackStartupOrchestrator:
             output_switch_result.av_input_result.status.value,
         )
 
+        media_source_power_result = self._measure_output_switch_step(
+            "wait_for_media_source",
+            lambda: self._wait_for_media_source(
+                request.media_source_power_request, power_on_result
+            ),
+        )
+        log = (
+            logger.error
+            if media_source_power_result.status == DeviceCommandStatus.FAILED
+            else logger.info
+        )
+        log(
+            "Media source power result | status=%s | detail=%s",
+            media_source_power_result.status.value,
+            media_source_power_result.detail,
+        )
+        if media_source_power_result.status == DeviceCommandStatus.FAILED:
+            return PlaybackStartupResult(
+                output_switch_result=output_switch_result,
+                media_player_start_result=PlayerPlaybackStartResult(
+                    media_mounted=False,
+                    playback_command_accepted=False,
+                    playback_started_on_device=False,
+                    detail=media_source_power_result.detail,
+                ),
+                media_source_power_result=media_source_power_result,
+            )
+
         media_player_start_result = self.start_oppo_playback(
             request=request.media_player_start_request,
             on_waiting=on_waiting,
@@ -65,7 +107,44 @@ class PlaybackStartupOrchestrator:
         return PlaybackStartupResult(
             output_switch_result=output_switch_result,
             media_player_start_result=media_player_start_result,
+            media_source_power_result=media_source_power_result,
         )
+
+    def _request_media_source_power_on(
+        self,
+        request: MediaSourcePowerRequest | None,
+    ) -> DeviceCommandResult:
+        if request is None or not request.switch_entity_ids:
+            return DeviceCommandResult.skipped("No media source power switch configured.")
+        if self._media_source_power is None:
+            return DeviceCommandResult.skipped(
+                "Home Assistant not configured; media source power switch ignored."
+            )
+        try:
+            return self._media_source_power.request_power_on(request)
+        except Exception as exc:
+            logger.exception("Media source power-on request raised.")
+            return DeviceCommandResult.failed(
+                f"Media source power-on failed: {type(exc).__name__}: {exc}"
+            )
+
+    def _wait_for_media_source(
+        self,
+        request: MediaSourcePowerRequest | None,
+        power_on_result: DeviceCommandResult,
+    ) -> DeviceCommandResult:
+        # Nothing configured, or the share was already reachable.
+        if power_on_result.status == DeviceCommandStatus.SKIPPED:
+            return power_on_result
+        # A failed request is still waited on: Home Assistant may be down
+        # while the NAS is booting (or was started by hand) anyway.
+        try:
+            return self._media_source_power.wait_until_available(request)
+        except Exception as exc:
+            logger.exception("Waiting for media source raised.")
+            return DeviceCommandResult.failed(
+                f"Media source wait failed: {type(exc).__name__}: {exc}"
+            )
 
     def switch_playback_output_to_oppo(
         self,

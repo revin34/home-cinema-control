@@ -1,6 +1,7 @@
 {
   "msg-startup-received": "Waking up the projector for you.",
   "msg-startup-locating": "Locating your title.",
+  "msg-startup-powering-on-media-source": "Powering on your library server. This can take a couple of minutes.",
   "msg-startup-starting": "Setting the first scene.",
   "msg-startup-fine-tuning": "Fine-tuning picture and sound for you.",
   "msg-startup-still-with-you": "Taking longer than usual. We're still right here.",
@@ -12,5 +13,6 @@
   "msg-playback-timeout": "Playback timeout",
   "msg-playback-error-play": "Could not play the file",
   "msg-playback-error-mount": "Could not mount the folder",
-  "msg-playback-error-no-oppo": "OPPO not available"
+  "msg-playback-error-no-oppo": "OPPO not available",
+  "msg-playback-error-media-source-offline": "Could not power on the server "
 }

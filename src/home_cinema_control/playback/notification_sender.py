@@ -23,6 +23,7 @@ class PlaybackStartMessages:
     error_mount: str
     error_play: str
     error_no_oppo: str
+    error_media_source_offline: str
 
 
 def playback_start_messages(lang: dict) -> PlaybackStartMessages:
@@ -31,6 +32,10 @@ def playback_start_messages(lang: dict) -> PlaybackStartMessages:
         error_mount=lang["msg-playback-error-mount"],
         error_play=lang["msg-playback-error-play"],
         error_no_oppo=lang["msg-playback-error-no-oppo"],
+        # .get: a language file predating this message must not break playback.
+        error_media_source_offline=lang.get(
+            "msg-playback-error-media-source-offline", "Could not power on the server "
+        ),
     )
 
 

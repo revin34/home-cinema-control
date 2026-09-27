@@ -16,6 +16,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 * Added an optional Home Assistant connection (URL plus a long-lived access token stored in `secrets.json`) on the
   Room screen, shared by the Home Assistant features below.
 
+* Added optional power-on of powered-off library servers through Home Assistant. Each path in Media Paths can name a
+  Home Assistant `switch`/`input_boolean` (for example a Wake-on-LAN switch) that powers its NAS, so libraries whose
+  folders live on different NAS each wake the right one. Before the OPPO mounts the share, HCC turns that switch on
+  when the share does not answer, tells the user in the media-server client, keeps switching the TV/AV while the NAS
+  boots, and waits until the NFS/SMB port accepts connections (`media_source_power.wait_timeout_seconds`, 300 s by
+  default). A NAS that is already up adds no delay; one that never comes online ends the startup with a dedicated
+  message and diagnostic. Testing a path also wakes its NAS first. HCC never powers a NAS off.
+
 * Added optional room lighting control through Home Assistant. From the Room screen, pick the `light`/`switch`
   entities to control. HCC turns them off once the OPPO confirms playback has started and back on when playback ends
   (stop, natural end, or playback failure); both actions are configurable, with optional fade-out/fade-in durations

@@ -1,6 +1,6 @@
 import {computed, nextTick, ref, watch} from 'vue'
 
-const EMPTY_DRAFT = {name: '', source_path: '', player_path: '', protocol: '', verified: false}
+const EMPTY_DRAFT = {name: '', source_path: '', player_path: '', protocol: '', verified: false, power_switch_entity_id: ''}
 
 // Resolves media_servers.providers[media_servers.active].playback.path_mappings
 // from a full config response — the nested shape that replaced the old flat
@@ -37,6 +37,7 @@ export function useMediaPathWorkflow({
     const navError = ref(null)
     const playerSuggestion = ref(null)
     const testLoading = ref(false)
+    const powerOnLoading = ref(false)
 
     let previewTimer = null
     let suggestionTimer = null
@@ -190,6 +191,7 @@ export function useMediaPathWorkflow({
                 player_path: row.mapping?.player_path || '',
                 protocol,
                 verified: !!row.mapping?.verified,
+                power_switch_entity_id: row.mapping?.power_switch_entity_id || '',
             }
             form.value = draft
             originalForm.value = {...draft}
@@ -316,6 +318,7 @@ export function useMediaPathWorkflow({
                 player_path: form.value.player_path,
                 protocol: form.value.protocol || currentProtocol.value,
                 verified: form.value.verified,
+                power_switch_entity_id: form.value.power_switch_entity_id || '',
             })
             form.value = {...form.value, verified: true}
             delete rowErrors.value[selectedKey.value]
@@ -327,6 +330,21 @@ export function useMediaPathWorkflow({
             throw e
         } finally {
             testLoading.value = false
+        }
+    }
+
+    // Wake the NAS behind this path (Home Assistant switch) and wait for it,
+    // e.g. before browsing its folders from the OPPO.
+    async function powerOnSource() {
+        powerOnLoading.value = true
+        try {
+            return await api.powerOnPath({
+                player_path: form.value.player_path,
+                protocol: form.value.protocol || currentProtocol.value,
+                power_switch_entity_id: form.value.power_switch_entity_id || '',
+            })
+        } finally {
+            powerOnLoading.value = false
         }
     }
 
@@ -479,6 +497,7 @@ export function useMediaPathWorkflow({
         navError,
         playerSuggestion,
         testLoading,
+        powerOnLoading,
         currentProtocol,
         smbEnabled,
         canTest,
@@ -493,6 +512,7 @@ export function useMediaPathWorkflow({
         newManualMapping,
         acceptPlayerSuggestion,
         testPath,
+        powerOnSource,
         savePath,
         deleteCurrentMapping,
         saveNetworkAccess,

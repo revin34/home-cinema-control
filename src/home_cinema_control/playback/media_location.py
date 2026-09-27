@@ -25,6 +25,22 @@ def resolve_player_media_file_location(
     )
 
 
+def matching_path_mappings(
+    media_path: str,
+    path_mappings: Sequence[Mapping[str, str]],
+) -> list[Mapping[str, str]]:
+    """The path mappings whose source path applies to media_path.
+
+    Same matching rule as the translation in _apply_path_mappings, so the
+    mappings reported here are exactly the ones that produced the player path.
+    """
+    return [
+        mapping
+        for mapping in path_mappings
+        if mapping.get("source_path") and mapping["source_path"] in media_path
+    ]
+
+
 def _apply_path_mappings(
     media_path: str,
     path_mappings: Sequence[Mapping[str, str]],

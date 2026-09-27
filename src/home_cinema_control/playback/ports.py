@@ -9,6 +9,7 @@ from home_cinema_control.playback.player_state import (
 from home_cinema_control.playback.startup.models import (
     DeviceCommandResult,
     MediaPlayerStartRequest,
+    MediaSourcePowerRequest,
 )
 
 
@@ -98,4 +99,18 @@ class RoomLightingOutputPort(Protocol):
 
     def restore_after_playback(self) -> DeviceCommandResult:
         """Apply the room lighting wanted once playback has ended."""
+        ...
+
+
+class MediaSourcePowerPort(Protocol):
+    def request_power_on(self, request: MediaSourcePowerRequest) -> DeviceCommandResult:
+        """Power on the media server if it is not reachable yet.
+
+        SKIPPED means the share is already reachable (nothing to wait for);
+        SUCCESS means power-on was requested; FAILED means it could not be.
+        """
+        ...
+
+    def wait_until_available(self, request: MediaSourcePowerRequest) -> DeviceCommandResult:
+        """Block until the media share is reachable or the wait times out."""
         ...

@@ -48,6 +48,7 @@ class PlaybackOrchestrationRequest:
     restore_outputs_on_finish: bool | Callable[[], bool] = True
     finish_idle_confirmation_polls: int | Callable[[], int] = 5
     on_startup_waiting: Callable[[int], None] | None = None
+    on_media_source_powering_on: Callable[[], None] | None = None
     on_tracks_applying: Callable[[], None] | None = None
     on_startup_completed: Callable[[PlayerPlaybackStartResult], None] | None = None
 
@@ -96,6 +97,7 @@ class PlaybackOrchestrator:
         startup_result = self._startup_orchestrator.start_playback(
             request=request.startup_request,
             on_waiting=request.on_startup_waiting,
+            on_media_source_powering_on=request.on_media_source_powering_on,
         )
         self._log_startup_result(startup_result)
 

@@ -40,7 +40,7 @@ class RecordingStartupOrchestrator:
         self.output_switch_calls = []
         self.start_calls = []
 
-    def start_playback(self, request, *, on_waiting=None):
+    def start_playback(self, request, *, on_waiting=None, on_media_source_powering_on=None):
         self.output_switch_calls.append(request)
         self.start_calls.append((request.media_player_start_request, on_waiting))
         return PlaybackStartupResult(

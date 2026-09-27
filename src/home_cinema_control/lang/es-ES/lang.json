@@ -1,6 +1,7 @@
 {
   "msg-startup-received": "Encendiendo el proyector para ti.",
   "msg-startup-locating": "Buscando tu título.",
+  "msg-startup-powering-on-media-source": "Encendiendo el servidor de tu biblioteca. Puede tardar un par de minutos.",
   "msg-startup-starting": "Preparando la primera escena.",
   "msg-startup-fine-tuning": "Ajustando imagen y sonido a tu gusto.",
   "msg-startup-still-with-you": "Está tardando más de lo habitual. Seguimos aquí, contigo.",
@@ -12,5 +13,6 @@
   "msg-playback-timeout": "Timeout Reproduciendo",
   "msg-playback-error-play": "No se ha podido reproducir el fichero",
   "msg-playback-error-mount": "No se ha podido montar la carpeta a reproducir",
-  "msg-playback-error-no-oppo": "OPPO no disponible"
+  "msg-playback-error-no-oppo": "OPPO no disponible",
+  "msg-playback-error-media-source-offline": "No se ha podido encender el servidor "
 }

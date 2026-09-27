@@ -4,8 +4,12 @@ import requests as _requests
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+from home_cinema_control.devices.home_assistant.media_source_power import (
+    power_on_media_source_for_mapping,
+)
 from home_cinema_control.devices.oppo.setup_control import browse_network_folder
 from home_cinema_control.playback.diagnostics import (
+    diagnose_device_action_failed,
     diagnose_path_inference_failed,
     diagnose_path_test_failed,
 )
@@ -50,9 +54,38 @@ def build_paths_router(api_runtime: WebApiRuntime, media_server_provider_factory
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    def _power_on_media_source(config: dict, mapping: dict) -> JSONResponse | None:
+        """Wake the path's NAS; a JSONResponse error when it stays offline."""
+        power_result = power_on_media_source_for_mapping(config, mapping)
+        if power_result.status.value != "failed":
+            return None
+        diagnostic = diagnose_device_action_failed(
+            component="media_source",
+            action="power on",
+            detail=str(power_result.detail),
+            severity="error",
+        )
+        api_runtime.runtime.set_last_diagnostic(diagnostic)
+        return JSONResponse(
+            status_code=400,
+            content={"detail": diagnostic.reason, "diagnostic": diagnostic.to_dict()},
+        )
+
+    @router.post("/paths/power-on")
+    def paths_power_on(body: dict):
+        config = api_runtime.config_service.load_config()
+        error = _power_on_media_source(config, body)
+        if error is not None:
+            return error
+        return {"status": "ok"}
+
     @router.post("/paths/test")
     def paths_test(body: dict):
         config = api_runtime.config_service.load_config()
+        # The OPPO can only mount the share once its NAS is up.
+        error = _power_on_media_source(config, body)
+        if error is not None:
+            return error
         result = check_path_configuration(config, body)
         if result == "OK":
             return body

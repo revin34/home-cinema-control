@@ -286,6 +286,9 @@ class PlaybackApplicationService:
                         media_player_start_request=(
                             prepared_requests.media_player_start_request
                         ),
+                        media_source_power_request=(
+                            prepared_requests.media_source_power_request
+                        ),
                     ),
                     startup_completion_request=(
                         prepared_requests.startup_completion_request
@@ -301,6 +304,7 @@ class PlaybackApplicationService:
                         else NORMAL_FINISH_IDLE_CONFIRMATION_POLLS
                     ),
                     on_startup_waiting=messaging.notify_waiting,
+                    on_media_source_powering_on=messaging.media_source_powering_on,
                     on_tracks_applying=messaging.tracks_applying,
                     on_startup_completed=lambda r: self._on_startup_completed(
                         r,

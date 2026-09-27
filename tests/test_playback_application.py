@@ -281,6 +281,7 @@ class StartFromIntentWiresOnStartupCompletedCorrectlyTest(unittest.TestCase):
             output_switch_request=SimpleNamespace(),
             media_player_start_request=SimpleNamespace(),
             startup_completion_request=SimpleNamespace(),
+            media_source_power_request=None,
         )
         fake_orchestration_result = SimpleNamespace(
             startup_result=SimpleNamespace(
