@@ -124,6 +124,9 @@ class SmbConfig(BaseModel):
     password: str = ""
 
 
+MAX_LIGHTING_FADE_SECONDS = 300.0
+
+
 class LightingConfig(BaseModel):
     """Room lighting driven through Home Assistant during playback.
 
@@ -139,7 +142,23 @@ class LightingConfig(BaseModel):
     entity_ids: list[str] = Field(default_factory=list)
     on_playback_start: str = "turn_off"
     on_playback_stop: str = "turn_on"
+    # Home Assistant light transition, in seconds; 0 switches instantly.
+    fade_out_seconds: float = 0.0
+    fade_in_seconds: float = 0.0
     timeout_seconds: float = 5.0
+
+    @field_validator("fade_out_seconds", "fade_in_seconds", mode="before")
+    @classmethod
+    def _coerce_fade_seconds(cls, v):
+        # A blank or invalid UI value must never break playback wiring: it
+        # just means "no fade". Capped to keep a typo from dimming for hours.
+        try:
+            seconds = float(v)
+        except (TypeError, ValueError):
+            return 0.0
+        if seconds != seconds:  # NaN
+            return 0.0
+        return min(max(seconds, 0.0), MAX_LIGHTING_FADE_SECONDS)
 
 
 class TelemetryConfig(BaseModel):

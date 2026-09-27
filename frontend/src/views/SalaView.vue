@@ -533,7 +533,26 @@
                 <HelpTooltip :text="$t('x-lighting-tooltip-on-stop')"/>
               </div>
               <FormSelect id="lighting-on-stop" v-model="lighting.on_playback_stop"
-                          :options="lightingActionOptions" class="mb-4"/>
+                          :options="lightingActionOptions" class="mb-3"/>
+
+              <div class="lighting-fade-grid mb-4">
+                <div>
+                  <div class="form-label label-with-help">
+                    <label for="lighting-fade-out">{{ $t('x-lighting-fade-out') }}</label>
+                    <HelpTooltip :text="$t('x-lighting-tooltip-fade-out')"/>
+                  </div>
+                  <input id="lighting-fade-out" v-model.number="lighting.fade_out_seconds" class="form-input"
+                         inputmode="decimal" max="300" min="0" step="0.5" type="number"/>
+                </div>
+                <div>
+                  <div class="form-label label-with-help">
+                    <label for="lighting-fade-in">{{ $t('x-lighting-fade-in') }}</label>
+                    <HelpTooltip :text="$t('x-lighting-tooltip-fade-in')"/>
+                  </div>
+                  <input id="lighting-fade-in" v-model.number="lighting.fade_in_seconds" class="form-input"
+                         inputmode="decimal" max="300" min="0" step="0.5" type="number"/>
+                </div>
+              </div>
 
               <div class="icon-action-row mb-4">
                 <IconActionButton
@@ -1312,6 +1331,12 @@ onMounted(async () => {
 
 .room-state--disabled {
   color: var(--text-subtle);
+}
+
+.lighting-fade-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .lighting-entity-list {

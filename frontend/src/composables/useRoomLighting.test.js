@@ -79,6 +79,8 @@ describe('useRoomLighting', () => {
 
         expect(lighting.lighting.value.home_assistant_token).toBe('')
         expect(lighting.lighting.value.on_playback_start).toBe('turn_off')
+        expect(lighting.lighting.value.fade_out_seconds).toBe(0)
+        expect(lighting.lighting.value.fade_in_seconds).toBe(0)
         expect(lighting.lighting.value.entity_ids).toEqual(['light.a'])
     })
 

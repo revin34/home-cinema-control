@@ -14,6 +14,8 @@ export function emptyLighting() {
         entity_ids: [],
         on_playback_start: 'turn_off',
         on_playback_stop: 'turn_on',
+        fade_out_seconds: 0,
+        fade_in_seconds: 0,
     }
 }
 

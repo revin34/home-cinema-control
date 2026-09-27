@@ -1,7 +1,8 @@
 """Home Assistant adapter for room lighting.
 
 Owns the Home Assistant REST transport: bearer-token auth, the
-/api/services/homeassistant/<service> call, and the /api/states mapping to
+light/homeassistant turn_on/turn_off service calls (with the light
+`transition` used for fades), and the /api/states mapping to
 HCC's LightingEntity. Nothing outside this module sees Home Assistant's wire
 format.
 """
@@ -128,9 +129,10 @@ class HomeAssistantLightingController:
             )
 
         logger.info(
-            "Applying room lighting for %s | action=%s | entities=%s",
+            "Applying room lighting for %s | action=%s | fade=%ss | entities=%s",
             phase,
             action,
+            f"{self._fade_seconds(action):g}",
             ",".join(self._entity_ids),
         )
         return self._call_service(action)
@@ -142,25 +144,71 @@ class HomeAssistantLightingController:
         if not self._entity_ids:
             return DeviceCommandResult.skipped("No lighting entities configured.")
 
+        fade_seconds = self._fade_seconds(service)
+        failures = []
+        for domain, payload in self._service_calls(fade_seconds):
+            failure = self._post_service(domain, service, payload, fade_seconds)
+            if failure:
+                failures.append(failure)
+
+        if failures:
+            return DeviceCommandResult.failed("; ".join(failures))
+        fade_detail = f" with {fade_seconds:g}s fade" if fade_seconds else ""
+        return DeviceCommandResult.success(
+            f"Home Assistant {service} applied to {len(self._entity_ids)} entities"
+            f"{fade_detail}."
+        )
+
+    def _fade_seconds(self, service: str) -> float:
+        if service == LIGHTING_ACTION_TURN_OFF:
+            return self._config.fade_out_seconds
+        return self._config.fade_in_seconds
+
+    def _service_calls(self, fade_seconds: float) -> list[tuple[str, dict]]:
+        """Group entities into one Home Assistant service call per target.
+
+        Only the light domain accepts `transition`: sending it to a switch
+        makes Home Assistant reject the whole call. Lights therefore go
+        through light.<service> (with the fade), everything else through the
+        generic homeassistant.<service>.
+        """
+        lights = [e for e in self._entity_ids if _entity_domain(e) == "light"]
+        others = [e for e in self._entity_ids if _entity_domain(e) != "light"]
+
+        calls = []
+        if lights:
+            payload = {"entity_id": lights}
+            if fade_seconds:
+                payload["transition"] = fade_seconds
+            calls.append(("light", payload))
+        if others:
+            calls.append(("homeassistant", {"entity_id": others}))
+        return calls
+
+    def _post_service(
+        self,
+        domain: str,
+        service: str,
+        payload: dict,
+        fade_seconds: float,
+    ) -> str | None:
         try:
             response = self._http.post(
-                f"{self._base_url}/api/services/homeassistant/{service}",
+                f"{self._base_url}/api/services/{domain}/{service}",
                 headers=self._headers(),
-                json={"entity_id": self._entity_ids},
-                timeout=self._config.timeout_seconds,
+                json=payload,
+                # Some integrations only answer once the transition is done.
+                timeout=self._config.timeout_seconds + fade_seconds,
             )
         except requests.RequestException as exc:
-            return DeviceCommandResult.failed(
-                f"Home Assistant {service} failed: {type(exc).__name__}"
-            )
+            return f"Home Assistant {domain}.{service} failed: {type(exc).__name__}"
 
         if response.status_code >= 400:
-            return DeviceCommandResult.failed(
-                f"Home Assistant {service} returned HTTP {response.status_code}."
+            return (
+                f"Home Assistant {domain}.{service} returned HTTP "
+                f"{response.status_code}."
             )
-        return DeviceCommandResult.success(
-            f"Home Assistant {service} applied to {len(self._entity_ids)} entities."
-        )
+        return None
 
     def _missing_connection_settings(self) -> str | None:
         if not self._base_url:

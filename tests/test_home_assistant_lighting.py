@@ -56,17 +56,23 @@ def _config(**overrides):
 
 
 class HomeAssistantLightingControllerTest(unittest.TestCase):
-    def test_prepare_for_playback_calls_configured_service_on_all_entities(self):
+    def test_prepare_for_playback_calls_configured_service_per_domain(self):
         http = RecordingHttpSession()
         controller = HomeAssistantLightingController(_config(), http_session=http)
 
         result = controller.prepare_for_playback()
 
         self.assertTrue(result.successful)
-        method, url, kwargs = http.calls[0]
-        self.assertEqual("POST", method)
-        self.assertEqual("http://ha.local:8123/api/services/homeassistant/turn_off", url)
-        self.assertEqual({"entity_id": ["light.ceiling", "switch.led_strip"]}, kwargs["json"])
+        self.assertEqual(
+            [
+                ("http://ha.local:8123/api/services/light/turn_off",
+                 {"entity_id": ["light.ceiling"]}),
+                ("http://ha.local:8123/api/services/homeassistant/turn_off",
+                 {"entity_id": ["switch.led_strip"]}),
+            ],
+            [(url, kwargs["json"]) for _, url, kwargs in http.calls],
+        )
+        _, _, kwargs = http.calls[0]
         self.assertEqual("Bearer secret-token", kwargs["headers"]["Authorization"])
         self.assertEqual(3, kwargs["timeout"])
 
@@ -76,7 +82,93 @@ class HomeAssistantLightingControllerTest(unittest.TestCase):
 
         controller.restore_after_playback()
 
-        self.assertTrue(http.calls[0][1].endswith("/api/services/homeassistant/turn_on"))
+        self.assertEqual(
+            ["/api/services/light/turn_on", "/api/services/homeassistant/turn_on"],
+            [url.removeprefix("http://ha.local:8123") for _, url, _ in http.calls],
+        )
+
+    def test_fade_out_is_sent_as_light_transition_when_turning_off(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_out_seconds=4, fade_in_seconds=2.5), http_session=http
+        )
+
+        result = controller.prepare_for_playback()
+
+        light_call, switch_call = http.calls
+        self.assertEqual(
+            {"entity_id": ["light.ceiling"], "transition": 4.0}, light_call[2]["json"]
+        )
+        # The request timeout leaves room for integrations that only answer
+        # once the transition has finished.
+        self.assertEqual(7.0, light_call[2]["timeout"])
+        # Switches do not accept transition; sending it would fail the call.
+        self.assertEqual({"entity_id": ["switch.led_strip"]}, switch_call[2]["json"])
+        self.assertIn("4s fade", result.detail)
+
+    def test_fade_in_is_sent_as_light_transition_when_turning_on(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_out_seconds=4, fade_in_seconds=2.5), http_session=http
+        )
+
+        controller.restore_after_playback()
+
+        self.assertEqual(2.5, http.calls[0][2]["json"]["transition"])
+
+    def test_manual_buttons_use_the_same_fade(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_out_seconds=3, entity_ids=["light.ceiling"]), http_session=http
+        )
+
+        controller.turn_off()
+
+        self.assertEqual(3.0, http.calls[0][2]["json"]["transition"])
+
+    def test_zero_fade_sends_no_transition(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_out_seconds=0, entity_ids=["light.ceiling"]), http_session=http
+        )
+
+        controller.turn_off()
+
+        self.assertNotIn("transition", http.calls[0][2]["json"])
+
+    def test_blank_or_invalid_fade_values_mean_no_fade(self):
+        for value in ("", None, "abc", -5, float("nan")):
+            with self.subTest(value=value):
+                http = RecordingHttpSession()
+                controller = HomeAssistantLightingController(
+                    _config(fade_out_seconds=value, entity_ids=["light.ceiling"]),
+                    http_session=http,
+                )
+
+                self.assertTrue(controller.turn_off().successful)
+                self.assertNotIn("transition", http.calls[0][2]["json"])
+
+    def test_fade_is_capped(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_in_seconds=99999, entity_ids=["light.ceiling"]), http_session=http
+        )
+
+        controller.turn_on()
+
+        self.assertEqual(300.0, http.calls[0][2]["json"]["transition"])
+
+    def test_only_switches_use_generic_service_without_transition(self):
+        http = RecordingHttpSession()
+        controller = HomeAssistantLightingController(
+            _config(fade_out_seconds=5, entity_ids=["switch.led_strip"]), http_session=http
+        )
+
+        controller.turn_off()
+
+        self.assertEqual(1, len(http.calls))
+        self.assertTrue(http.calls[0][1].endswith("/api/services/homeassistant/turn_off"))
+        self.assertEqual({"entity_id": ["switch.led_strip"]}, http.calls[0][2]["json"])
 
     def test_none_action_skips_without_calling_home_assistant(self):
         http = RecordingHttpSession()
