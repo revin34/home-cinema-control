@@ -59,6 +59,15 @@ def _tv_readiness(config: dict) -> dict:
         if tv.get("ip"):
             return {"status": verified_status(config, "tv"), "detail": f"{model} · {tv['ip']}"}
         return {"status": "incomplete", "detail": "IP address not set"}
+    if model == "HOME_ASSISTANT":
+        if not home_assistant_configured(config):
+            return {"status": "incomplete", "detail": "Home Assistant not configured"}
+        if tv.get("ha_remote_entity_id"):
+            return {
+                "status": verified_status(config, "tv"),
+                "detail": f"Home Assistant · {tv['ha_remote_entity_id']}",
+            }
+        return {"status": "incomplete", "detail": "Home Assistant remote not set"}
     if model == "SCRIPTS":
         if tv.get("startup_script"):
             return {"status": verified_status(config, "tv"), "detail": model}

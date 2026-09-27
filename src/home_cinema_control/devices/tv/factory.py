@@ -1,8 +1,10 @@
+from home_cinema_control.devices.tv.adapters.home_assistant import HomeAssistantTvController
 from home_cinema_control.devices.tv.adapters.lg import LgTvController
 from home_cinema_control.devices.tv.adapters.scripts import ScriptsTvController
 from home_cinema_control.devices.tv.adapters.sony import SonyTvController
 
 TV_CONTROLLERS = {
+    "HOME_ASSISTANT": HomeAssistantTvController,
     "LG": LgTvController,
     "SONY": SonyTvController,
     "SCRIPTS": ScriptsTvController,

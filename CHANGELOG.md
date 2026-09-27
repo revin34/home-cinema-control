@@ -16,6 +16,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 * Added an optional Home Assistant connection (URL plus a long-lived access token stored in `secrets.json`) on the
   Room screen, shared by the Home Assistant features below.
 
+* Added a `HOME_ASSISTANT` TV model that controls any TV Home Assistant exposes as a `remote` entity (for example
+  Android TV / Google TV sets through the Android TV Remote integration). HCC powers the TV on, switches to the
+  player input and returns to the media-server app (`tv.emby.embyatv`, `org.jellyfin.androidtv`) or the previous app
+  (`current_activity`). The input command is either a key code (`KEYCODE_TV_INPUT_HDMI_n`) or a TV-input URI opened as
+  an activity; presets cover TCL (`content://android.media.tv/passthrough/com.tcl.tvinput…HW15` for HDMI 1, verified
+  on a TCL Google TV that ignores the HDMI key codes) and the generic Android keys, and the command stays editable.
+
 * Added optional power-on of powered-off library servers through Home Assistant. Each path in Media Paths can name a
   Home Assistant `switch`/`input_boolean` (for example a Wake-on-LAN switch) that powers its NAS, so libraries whose
   folders live on different NAS each wake the right one. Before the OPPO mounts the share, HCC turns that switch on

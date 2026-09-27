@@ -83,6 +83,8 @@ def _section_payload(section: str, config: dict[str, Any]) -> dict[str, Any]:
             "ip": tv.get("ip", ""),
             "startup_script": tv.get("startup_script", ""),
             "shutdown_script": tv.get("shutdown_script", ""),
+            "ha_remote_entity_id": tv.get("ha_remote_entity_id", ""),
+            "ha_input_command": tv.get("ha_input_command", ""),
         }
 
     if section == "av":

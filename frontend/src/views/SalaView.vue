@@ -240,6 +240,100 @@
                 </p>
                 </template>
 
+                <template v-if="tv.model === 'HOME_ASSISTANT'">
+                  <p v-if="!homeAssistantConfigured" class="section-hint mb-4" style="color:var(--status-warning)">
+                    {{ $t('x-tv-ha-needs-home-assistant') }}
+                  </p>
+                  <template v-else>
+                    <div class="form-label label-with-help">
+                      <label for="tv-ha-remote">{{ $t('x-tv-ha-remote') }}</label>
+                      <HelpTooltip :text="$t('x-tv-ha-tooltip-remote')"/>
+                    </div>
+                    <input id="tv-ha-remote" v-model.trim="tv.ha_remote_entity_id" autocomplete="off"
+                           class="form-input mono mb-3" placeholder="remote.cine_tv" type="text"/>
+                    <div class="icon-action-row mb-3">
+                      <IconActionButton
+                          :label="$t('x-tv-ha-detect-remotes')"
+                          :loading="tvRemotesLoading"
+                          :loading-label="$t('x-tv-ha-detecting-remotes')"
+                          icon="scan"
+                          @click="detectTvRemotes"
+                      />
+                    </div>
+                    <EntityPicker
+                        v-if="tvRemotes.length"
+                        v-model="tv.ha_remote_entity_id"
+                        :entities="tvRemotes"
+                        :filter-placeholder="$t('x-tv-ha-remotes-filter')"
+                        :multiple="false"
+                        class="mb-3"
+                    />
+
+                    <button :disabled="tvTestLoading || !tv.ha_remote_entity_id" class="btn-ghost mb-4"
+                            @click="testTvConnection">
+                      {{ tvTestLoading ? $t('x-common-testing') : $t('x-tv-test-connection') }}
+                    </button>
+
+                  <div class="form-label label-with-help">
+                    <label for="tv-ha-hdmi-input">{{ $t('x-tv-hdmi-input') }}</label>
+                    <HelpTooltip :text="$t('x-tv-tooltip-hdmi-input')"/>
+                  </div>
+                  <FormSelect
+                      id="tv-ha-hdmi-input"
+                      v-model="selectedTvSourceIndex"
+                      :disabled="!tvTested"
+                      :options="tv.available_hdmi_inputs.map((src, i) => ({ value: i, label: src.nombre || src.name || src.id }))"
+                      class="mb-3"
+                      @change="onHaInputPresetChange"
+                  />
+                  <p v-if="!tvTested" class="section-hint">{{ $t('x-tv-actions-locked-hint') }}</p>
+
+                  <div class="form-label label-with-help mt-3">
+                    <label for="tv-ha-input-command">{{ $t('x-tv-ha-input-command') }}</label>
+                    <HelpTooltip :text="$t('x-tv-ha-tooltip-input-command')"/>
+                  </div>
+                  <input id="tv-ha-input-command" v-model.trim="tv.ha_input_command" autocomplete="off"
+                         class="form-input mono mb-3" type="text"/>
+
+                  <div class="icon-action-row">
+                    <HelpTooltip
+                        :text="tvTested ? $t('x-tv-action-detect-inputs-tooltip') : $t('x-tv-actions-locked-tooltip')">
+                      <IconActionButton
+                          :disabled="!tvTested"
+                          :label="$t('x-tv-action-detect-inputs')"
+                          :loading="tvSourcesLoading"
+                          :loading-label="$t('x-tv-detecting-inputs')"
+                          icon="scan"
+                          @click="getTvSources"
+                      />
+                    </HelpTooltip>
+                    <HelpTooltip
+                        :text="tvTested ? $t('x-tv-action-switch-player-tooltip') : $t('x-tv-actions-locked-tooltip')">
+                      <IconActionButton
+                          :disabled="!tvTested"
+                          :label="$t('x-tv-action-switch-player')"
+                          icon="player"
+                          @click="tvSwitchInput"
+                      />
+                    </HelpTooltip>
+                    <HelpTooltip
+                        :text="!tvTested
+                          ? $t('x-tv-actions-locked-tooltip')
+                          : mediaServerConfigured
+                            ? $t('x-tv-action-restore-media-server-tooltip', {server: mediaServerBrand.label})
+                            : $t('x-tv-action-restore-media-server-not-configured-tooltip')">
+                      <IconActionButton
+                          :brand="mediaServerBrand.brand"
+                          :disabled="!tvTested || !mediaServerConfigured"
+                          :label="$t('x-tv-action-restore-media-server', {server: mediaServerBrand.label})"
+                          icon="server"
+                          @click="tvRestoreInput"
+                      />
+                    </HelpTooltip>
+                  </div>
+                  </template>
+                </template>
+
                 <template v-if="tv.model === 'SCRIPTS'">
                   <label class="form-label" for="tv-startup-script">{{ $t('x-tv-startup-script') }}</label>
                   <input id="tv-startup-script" v-model="tv.startup_script" class="form-input mb-3" type="text"/>
@@ -625,6 +719,7 @@ import HelpTooltip from '../components/HelpTooltip.vue'
 import IpInput from '../components/IpInput.vue'
 import IconActionButton from '../components/IconActionButton.vue'
 import FormSelect from '../components/FormSelect.vue'
+import EntityPicker from '../components/EntityPicker.vue'
 import {useNetworkScan} from '../composables/useNetworkScan.js'
 import {useConfigSectionSave} from '../composables/useConfigSectionSave.js'
 import {useMediaServerBrand} from '../composables/useMediaServerBrand.js'
@@ -663,6 +758,9 @@ const tvState = computed(() => {
   if (tv.value.model === 'LG' && !tv.value.ip) return 'incomplete'
   if (tv.value.model === 'SONY' && (!tv.value.ip || !tv.value.sony_psk_configured)) return 'incomplete'
   if (tv.value.model === 'SCRIPTS' && !tv.value.startup_script) return 'incomplete'
+  if (tv.value.model === 'HOME_ASSISTANT' && (!homeAssistantConfigured.value || !tv.value.ha_remote_entity_id)) {
+    return 'incomplete'
+  }
   return tvTested.value ? 'tested' : 'configured'
 })
 
@@ -702,6 +800,8 @@ function emptyTvForModel(model, enabled) {
     player_hdmi_input_id: 0,
     startup_script: '',
     shutdown_script: '',
+    ha_remote_entity_id: '',
+    ha_input_command: '',
     sony_psk: '',
     sony_psk_configured: false,
     sony_app_uris: {},
@@ -770,6 +870,30 @@ async function testTvConnection() {
     toast.error(e.message)
   } finally {
     tvTestLoading.value = false
+  }
+}
+
+/* TV through Home Assistant: its remote entity */
+// Picking a preset fills the editable input command; editing it afterwards
+// is how a TV that needs a different URI or key gets supported.
+function onHaInputPresetChange() {
+  const source = (tv.value.available_hdmi_inputs || [])[selectedTvSourceIndex.value]
+  if (source?.id) tv.value.ha_input_command = source.id
+}
+
+const tvRemotes = ref([])
+const tvRemotesLoading = ref(false)
+
+async function detectTvRemotes() {
+  tvRemotesLoading.value = true
+  try {
+    const result = await api.getHomeAssistantEntities(await api.getConfig(), ['remote'])
+    tvRemotes.value = result?.entities || []
+    toast.success(t('x-tv-ha-remotes-detected', {count: tvRemotes.value.length}))
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    tvRemotesLoading.value = false
   }
 }
 
@@ -939,6 +1063,11 @@ function localTvReadiness() {
     return tv.value.ip && tv.value.sony_psk_configured
         ? {status: 'configured', detail: `SONY · ${tv.value.ip}`}
         : {status: 'incomplete', detail: 'IP address or PSK not set'}
+  }
+  if (tv.value.model === 'HOME_ASSISTANT') {
+    return tv.value.ha_remote_entity_id
+        ? {status: 'configured', detail: `Home Assistant · ${tv.value.ha_remote_entity_id}`}
+        : {status: 'incomplete', detail: 'Home Assistant remote not set'}
   }
   if (tv.value.model === 'SCRIPTS') {
     return tv.value.startup_script

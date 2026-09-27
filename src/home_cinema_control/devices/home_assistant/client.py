@@ -88,8 +88,11 @@ class HomeAssistantClient:
 
     def get_state(self, entity_id: str) -> str:
         """Current state string of one entity; raises HomeAssistantError."""
-        response = self._get(f"/api/states/{entity_id}")
-        return str((response.json() or {}).get("state", ""))
+        return str(self.get_entity(entity_id).get("state", ""))
+
+    def get_entity(self, entity_id: str) -> dict:
+        """State and attributes of one entity; raises HomeAssistantError."""
+        return self._get(f"/api/states/{entity_id}").json() or {}
 
     def call_service(
         self,

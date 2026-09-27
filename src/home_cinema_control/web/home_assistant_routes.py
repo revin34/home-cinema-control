@@ -12,9 +12,9 @@ from home_cinema_control.web.api_runtime import WebApiRuntime
 from home_cinema_control.web.setup_verification import mark_section_verified
 
 # Entity domains the UI may ask for: lights for room lighting, switches and
-# input_booleans for media-source power. Anything else is rejected so the
-# endpoint cannot be used to enumerate a whole Home Assistant install.
-ALLOWED_ENTITY_DOMAINS = {"light", "switch", "input_boolean"}
+# input_booleans for media-source power, remotes for TV control. Anything
+# else is rejected so the endpoint cannot enumerate a whole Home Assistant.
+ALLOWED_ENTITY_DOMAINS = {"light", "switch", "input_boolean", "remote"}
 
 
 def build_home_assistant_router(api_runtime: WebApiRuntime) -> APIRouter:
