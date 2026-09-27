@@ -337,40 +337,67 @@
                   </div>
 
                   <div class="power-switch-block mt-3">
-                    <div class="form-label label-with-help">
-                      <label for="path-power-switch">{{ $t('x-paths-power-switch') }}</label>
-                      <HelpTooltip :text="$t('x-paths-tooltip-power-switch')"/>
+                    <div class="power-switch-head">
+                      <div class="form-label label-with-help mb-0">
+                        <span>{{ $t('x-paths-power-switch') }}</span>
+                        <HelpTooltip :text="$t('x-paths-tooltip-power-switch')"/>
+                      </div>
+                      <button
+                          :aria-label="$t('x-paths-power-switch')"
+                          :aria-pressed="powerSwitchEnabled"
+                          :class="['toggle-switch', powerSwitchEnabled && 'on']"
+                          :disabled="gateActive || !homeAssistantReady"
+                          type="button"
+                          @click="togglePowerSwitch"
+                      >
+                        <div class="toggle-thumb"></div>
+                      </button>
                     </div>
-                    <template v-if="homeAssistantReady">
-                      <div class="route-input-row">
-                        <input
-                            id="path-power-switch"
-                            v-model.trim="form.power_switch_entity_id"
+
+                    <p v-if="!homeAssistantReady" class="section-hint mt-2">{{ $t('x-paths-power-switch-needs-ha') }}</p>
+
+                    <template v-else-if="powerSwitchEnabled">
+                      <label class="form-label mt-3" for="path-power-switch">{{ $t('x-paths-power-switch-entity') }}</label>
+                      <input
+                          id="path-power-switch"
+                          v-model.trim="form.power_switch_entity_id"
+                          :disabled="gateActive"
+                          autocomplete="off"
+                          class="form-input mono mb-3"
+                          placeholder="switch.nas11"
+                          type="text"
+                      />
+
+                      <div class="icon-action-row mb-3">
+                        <IconActionButton
                             :disabled="gateActive"
-                            :placeholder="$t('x-paths-power-switch-placeholder')"
-                            autocomplete="off"
-                            class="form-input route-input mono"
-                            list="path-power-switch-options"
-                            type="text"
+                            :label="$t('x-paths-power-switch-detect')"
+                            :loading="powerSwitchesLoading"
+                            :loading-label="$t('x-paths-power-switch-detecting')"
+                            icon="scan"
+                            @click="detectPowerSwitches"
                         />
                         <IconActionButton
                             :disabled="gateActive || !form.power_switch_entity_id || !form.player_path"
                             :label="$t('x-paths-power-on')"
                             :loading="powerOnLoading"
                             :loading-label="$t('x-paths-powering-on')"
-                            compact
                             icon="power-on"
                             @click="powerOnMediaSource"
                         />
                       </div>
-                      <datalist id="path-power-switch-options">
-                        <option v-for="entity in powerSwitches" :key="entity.entity_id" :value="entity.entity_id">
-                          {{ entity.name }} · {{ entity.state }}
-                        </option>
-                      </datalist>
-                      <p class="section-hint mt-2">{{ $t('x-paths-power-switch-hint') }}</p>
+
+                      <EntityPicker
+                          v-if="powerSwitches.length"
+                          v-model="form.power_switch_entity_id"
+                          :disabled="gateActive"
+                          :entities="powerSwitches"
+                          :filter-placeholder="$t('x-paths-power-switch-filter')"
+                          :multiple="false"
+                          class="mb-3"
+                      />
+                      <p class="section-hint">{{ $t('x-paths-power-switch-hint') }}</p>
                     </template>
-                    <p v-else class="section-hint">{{ $t('x-paths-power-switch-needs-ha') }}</p>
                   </div>
 
                   <div v-if="showNav" class="folder-nav mt-3">
@@ -541,7 +568,7 @@
 </template>
 
 <script setup>
-import {computed, onMounted, ref} from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import {useI18n} from 'vue-i18n'
 import {useRouter} from 'vue-router'
 import {
@@ -565,6 +592,7 @@ import {useToast} from '../composables/useToast.js'
 import StepNav from '../components/StepNav.vue'
 import HelpTooltip from '../components/HelpTooltip.vue'
 import IconActionButton from '../components/IconActionButton.vue'
+import EntityPicker from '../components/EntityPicker.vue'
 import {useSetupReadiness} from '../composables/useSetupReadiness.js'
 import {useMediaPathWorkflow} from '../composables/useMediaPathWorkflow.js'
 import {useConfigSectionSave} from '../composables/useConfigSectionSave.js'
@@ -883,16 +911,29 @@ async function clearCredentials() {
 
 const homeAssistantReady = computed(() => homeAssistantConfigured(fullConfig.value?.home_assistant))
 const powerSwitches = ref([])
+const powerSwitchesLoading = ref(false)
+const powerSwitchEnabled = ref(false)
 
-// Suggestions for the power-switch field; failing to list them (Home
-// Assistant down) only loses the suggestions, the field still works.
-async function loadPowerSwitches(config) {
-  if (!homeAssistantConfigured(config?.home_assistant)) return
+// The toggle follows the path being edited: on when it already has a switch.
+watch(selectedKey, () => {
+  powerSwitchEnabled.value = Boolean(form.value.power_switch_entity_id)
+}, {immediate: true})
+
+function togglePowerSwitch() {
+  powerSwitchEnabled.value = !powerSwitchEnabled.value
+  if (!powerSwitchEnabled.value) form.value.power_switch_entity_id = ''
+}
+
+async function detectPowerSwitches() {
+  powerSwitchesLoading.value = true
   try {
-    const result = await api.getHomeAssistantEntities(config, ['switch', 'input_boolean'])
+    const result = await api.getHomeAssistantEntities(await api.getConfig(), ['switch', 'input_boolean'])
     powerSwitches.value = result?.entities || []
-  } catch {
-    powerSwitches.value = []
+    toast.success(t('x-paths-power-switch-detected', {count: powerSwitches.value.length}))
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    powerSwitchesLoading.value = false
   }
 }
 
@@ -916,7 +957,6 @@ onMounted(async () => {
     preMountSmb.value = data.oppo?.pre_mount_smb ?? false
     const [, detectedLibraries] = await Promise.all([loadLibraries(), fetchDetectedLibraries()])
     initialize(data, detectedLibraries)
-    loadPowerSwitches(data)
   } finally {
     loading.value = false
   }
@@ -1564,6 +1604,13 @@ onMounted(async () => {
 .power-switch-block {
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.power-switch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .route-rails {
