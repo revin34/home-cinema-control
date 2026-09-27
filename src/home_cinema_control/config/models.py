@@ -124,6 +124,24 @@ class SmbConfig(BaseModel):
     password: str = ""
 
 
+class LightingConfig(BaseModel):
+    """Room lighting driven through Home Assistant during playback.
+
+    home_assistant_token is deliberately not a field here: it is a secret,
+    merged in at runtime via SECRET_PATHS/secrets.json, never part of the
+    persisted config.json schema.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = False
+    home_assistant_url: str = ""
+    entity_ids: list[str] = Field(default_factory=list)
+    on_playback_start: str = "turn_off"
+    on_playback_stop: str = "turn_on"
+    timeout_seconds: float = 5.0
+
+
 class TelemetryConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -208,4 +226,5 @@ class HccConfig(BaseModel):
     oppo: OppoConfig = Field(default_factory=OppoConfig)
     media_servers: MediaServersConfig = Field(default_factory=MediaServersConfig)
     smb: SmbConfig = Field(default_factory=SmbConfig)
+    lighting: LightingConfig = Field(default_factory=LightingConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)

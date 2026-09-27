@@ -96,4 +96,13 @@ def _section_payload(section: str, config: dict[str, Any]) -> dict[str, Any]:
             "power_off_command": av.get("power_off_command", ""),
         }
 
+    if section == "lighting":
+        # Only what the connection test proves: picking lights afterwards
+        # must not turn a verified connection into a stale one.
+        lighting = config.get("lighting") or {}
+        return {
+            "enabled": bool(lighting.get("enabled", False)),
+            "home_assistant_url": lighting.get("home_assistant_url", ""),
+        }
+
     return {section: config.get(section)}

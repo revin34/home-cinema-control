@@ -265,13 +265,10 @@ function stepDotColor(status) {
 }
 
 const roomReadinessStatus = computed(() => {
-  const tvStatus = readiness.value?.tv?.status || 'disabled'
-  const avStatus = readiness.value?.av?.status || 'disabled'
-  if (tvStatus === 'incomplete' || avStatus === 'incomplete' || tvStatus === 'stale' || avStatus === 'stale') {
-    return 'incomplete'
-  }
-  if (tvStatus === 'verified' || avStatus === 'verified') return 'verified'
-  if (tvStatus === 'configured' || avStatus === 'configured') return 'configured'
+  const statuses = ['tv', 'av', 'lighting'].map((section) => readiness.value?.[section]?.status || 'disabled')
+  if (statuses.some((status) => status === 'incomplete' || status === 'stale')) return 'incomplete'
+  if (statuses.includes('verified')) return 'verified'
+  if (statuses.includes('configured')) return 'configured'
   return 'disabled'
 })
 

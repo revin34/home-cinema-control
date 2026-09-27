@@ -23,6 +23,7 @@ SECRET_PATHS = {
     ("user_password",),
     ("smb", "password"),
     ("tv", "sony_psk"),
+    ("lighting", "home_assistant_token"),
 }
 
 SENSITIVE_WEB_CONFIG_PATHS = set(SECRET_PATHS)
@@ -74,6 +75,9 @@ def sanitize_config_for_web(config: dict) -> dict:
     tv.sony_psk_configured reports whether a Sony Pre-Shared Key is stored, the
     same way smb.password_configured does for SMB, so the Sony TV form can show
     "already configured" instead of always rendering an empty field.
+
+    lighting.home_assistant_token_configured does the same for the Home
+    Assistant long-lived access token.
     """
     safe_config = _deep_merge({}, config)
 
@@ -85,6 +89,9 @@ def sanitize_config_for_web(config: dict) -> dict:
     sony_psk_configured = bool(
         str(_get_nested(config, ("tv", "sony_psk"), "")).strip()
     )
+    home_assistant_token_configured = bool(
+        str(_get_nested(config, ("lighting", "home_assistant_token"), "")).strip()
+    )
 
     for path in SENSITIVE_WEB_CONFIG_PATHS:
         _pop_nested(safe_config, path)
@@ -95,6 +102,9 @@ def sanitize_config_for_web(config: dict) -> dict:
 
     safe_tv = safe_config.setdefault("tv", {})
     safe_tv["sony_psk_configured"] = sony_psk_configured
+
+    safe_lighting = safe_config.setdefault("lighting", {})
+    safe_lighting["home_assistant_token_configured"] = home_assistant_token_configured
 
     _remove_legacy_flat_keys(safe_config)
 

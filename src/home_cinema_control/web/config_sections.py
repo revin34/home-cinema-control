@@ -21,7 +21,7 @@ from home_cinema_control.media_servers.common.models import (
 # untyped dict merges on purpose — the config models use extra="allow", so an
 # all-optional Pydantic body model here would only restate those models and
 # re-introduce the default duplication that the Pydantic-defaulting work removed.
-SIMPLE_SECTIONS = ("app", "oppo", "tv", "av", "smb")
+SIMPLE_SECTIONS = ("app", "oppo", "tv", "av", "smb", "lighting")
 
 
 class MediaServerSectionBody(BaseModel):
@@ -63,7 +63,7 @@ class PathMappingsSectionBody(BaseModel):
 
 
 def apply_simple_section(config: dict[str, Any], section: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Partial-merge a flat section (app/oppo/tv/av/smb) into config[section]."""
+    """Partial-merge a flat section (app/oppo/tv/av/smb/lighting) into config[section]."""
     source = body.get(section) if section in body else body
     updated = {**config}
     updated[section] = {**(config.get(section) or {}), **(source or {})}

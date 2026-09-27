@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable
 
@@ -21,7 +22,9 @@ from home_cinema_control.playback.finish import (
     PlaybackFinishRequest,
     PlaybackFinishResult,
 )
+from home_cinema_control.playback.ports import RoomLightingOutputPort
 from home_cinema_control.playback.startup.models import (
+    DeviceCommandResult,
     PlaybackOutputSwitchResult,
     PlaybackStartupRequest,
     PlaybackStartupResult,
@@ -77,12 +80,14 @@ class PlaybackOrchestrator:
         during_playback_orchestrator: DuringPlaybackOrchestrator,
         finish_playback_orchestrator: FinishPlaybackOrchestrator,
         error_handler: PlaybackErrorHandler,
+        room_lighting: RoomLightingOutputPort | None = None,
     ) -> None:
         self._startup_orchestrator = startup_orchestrator
         self._startup_completion_service = startup_completion_service
         self._during_playback_orchestrator = during_playback_orchestrator
         self._finish_playback_orchestrator = finish_playback_orchestrator
         self._error_handler = error_handler
+        self._room_lighting = room_lighting
 
     def play_until_stopped(
         self,
@@ -105,6 +110,26 @@ class PlaybackOrchestrator:
                 error_recovery_result=recovery_result,
             )
 
+        # Lights only change once the OPPO has confirmed playback, so a failed
+        # mount/startup never leaves the room dark. Every exit after this point
+        # restores them, except a normal finish that deliberately keeps the
+        # room outputs as they are (restore_outputs_on_finish=False).
+        room_lighting = _RoomLightingSequence(self._room_lighting)
+        room_lighting.prepare_for_playback()
+        restore_room_lighting = True
+        try:
+            result = self._play_after_startup(request, startup_result)
+            if result.error_recovery_result is None:
+                restore_room_lighting = _resolve_restore_outputs_on_finish(request)
+            return result
+        finally:
+            room_lighting.finish(restore=restore_room_lighting)
+
+    def _play_after_startup(
+        self,
+        request: PlaybackOrchestrationRequest,
+        startup_result: PlaybackStartupResult,
+    ) -> PlaybackOrchestrationResult:
         try:
             if request.on_tracks_applying is not None:
                 request.on_tracks_applying()
@@ -306,6 +331,64 @@ class PlaybackOrchestrator:
             playback_state.lifecycle_phase.value if playback_state is not None else None,
             media_player_start_result.detail,
         )
+
+
+class _RoomLightingSequence:
+    """Runs one playback's lighting changes off the playback thread, in order.
+
+    A slow or unreachable Home Assistant must never delay the OPPO handoff or
+    the media-server reports, so each change is queued on a single worker:
+    the "restore" change always runs after the "prepare" change, however long
+    the first one takes.
+    """
+
+    def __init__(self, room_lighting: RoomLightingOutputPort | None) -> None:
+        self._room_lighting = room_lighting
+        self._executor: ThreadPoolExecutor | None = None
+
+    def prepare_for_playback(self) -> None:
+        if self._room_lighting is None:
+            return
+        self._executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="room-lighting",
+        )
+        self._submit("prepare_for_playback", self._room_lighting.prepare_for_playback)
+
+    def finish(self, *, restore: bool) -> None:
+        if self._executor is None:
+            return
+        if restore:
+            self._submit(
+                "restore_after_playback",
+                self._room_lighting.restore_after_playback,
+            )
+        else:
+            logger.info("Keeping room lighting as is: outputs are not restored on finish.")
+        self._executor.shutdown(wait=False)
+        self._executor = None
+
+    def _submit(self, step_name: str, operation: Callable[[], DeviceCommandResult]) -> None:
+        future = self._executor.submit(operation)
+        future.add_done_callback(
+            lambda completed: _log_room_lighting_result(step_name, completed)
+        )
+
+
+def _log_room_lighting_result(step_name: str, future: Future) -> None:
+    try:
+        result = future.result()
+    except Exception:
+        logger.exception("Room lighting step raised | step=%s", step_name)
+        return
+
+    log = logger.warning if result.status.value == "failed" else logger.info
+    log(
+        "Room lighting result | step=%s | status=%s | detail=%s",
+        step_name,
+        result.status.value,
+        result.detail,
+    )
 
 
 def _resolve_restore_outputs_on_finish(

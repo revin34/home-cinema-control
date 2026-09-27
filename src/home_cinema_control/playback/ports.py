@@ -89,3 +89,13 @@ class AvReceiverOutputPort(Protocol):
     def restore_tv_audio(self) -> DeviceCommandResult:
         """Restore the AV receiver to TV audio."""
         ...
+
+
+class RoomLightingOutputPort(Protocol):
+    def prepare_for_playback(self) -> DeviceCommandResult:
+        """Apply the room lighting wanted while a movie is playing."""
+        ...
+
+    def restore_after_playback(self) -> DeviceCommandResult:
+        """Apply the room lighting wanted once playback has ended."""
+        ...

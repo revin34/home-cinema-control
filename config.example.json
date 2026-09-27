@@ -38,6 +38,14 @@
         "command_timeout_seconds": 1,
         "tv_connected_input": ""
     },
+    "lighting": {
+        "enabled": false,
+        "home_assistant_url": "",
+        "entity_ids": [],
+        "on_playback_start": "turn_off",
+        "on_playback_stop": "turn_on",
+        "timeout_seconds": 5.0
+    },
     "app": {
         "backup_path": "backup",
         "language": "es-ES",

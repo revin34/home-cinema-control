@@ -13,6 +13,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   after the MAC address is configured or detected from the network scan, locks Trinnov power actions until that MAC is
   available, and treats the integration as contract-tested until real Altitude hardware logs confirm it.
 
+* Added optional room lighting control through Home Assistant. From the Room screen, configure the Home Assistant URL,
+  a long-lived access token (stored in `secrets.json`), and the `light`/`switch` entities to control. HCC turns them
+  off once the OPPO confirms playback has started and back on when playback ends (stop, natural end, or playback
+  failure); both actions are configurable. Lights are left untouched when OPPO startup fails or when a new item
+  replaces the current playback, and Home Assistant calls run off the playback thread so a slow or unreachable
+  instance never delays the handoff.
+
 ### Fixed
 
 * Updated LG webOS pairing to use HCC's own unsigned prompt manifest instead of the legacy LG test-app signature

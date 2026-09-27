@@ -12,6 +12,7 @@ def compute_config_readiness(config: dict) -> dict:
         "media_paths": _media_paths_readiness(config),
         "tv": _tv_readiness(config),
         "av": _av_readiness(config),
+        "lighting": _lighting_readiness(config),
     }
 
 
@@ -80,3 +81,23 @@ def _av_readiness(config: dict) -> dict:
             return {"status": verified_status(config, "av"), "detail": f"{model} · {av['ip']}"}
         return {"status": "incomplete", "detail": "IP address not set"}
     return {"status": "incomplete", "detail": "Model not selected"}
+
+
+def _lighting_readiness(config: dict) -> dict:
+    lighting = config.get("lighting") or {}
+    if not lighting.get("enabled", False):
+        return {"status": "disabled", "detail": "Lighting control disabled (optional)"}
+    if not lighting.get("home_assistant_url"):
+        return {"status": "incomplete", "detail": "Home Assistant URL not set"}
+    if not (
+        lighting.get("home_assistant_token_configured")
+        or str(lighting.get("home_assistant_token") or "").strip()
+    ):
+        return {"status": "incomplete", "detail": "Home Assistant token not configured"}
+    entity_ids = [e for e in lighting.get("entity_ids") or [] if str(e).strip()]
+    if not entity_ids:
+        return {"status": "incomplete", "detail": "No lights selected"}
+    return {
+        "status": verified_status(config, "lighting"),
+        "detail": f"Home Assistant · {len(entity_ids)} entities",
+    }

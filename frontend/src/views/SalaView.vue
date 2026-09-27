@@ -443,10 +443,124 @@
               <ol class="room-help-list">
                 <li>{{ $t('x-sala-help-step-tv') }}</li>
                 <li>{{ $t('x-sala-help-step-av') }}</li>
+                <li>{{ $t('x-sala-help-step-lighting') }}</li>
                 <li>{{ $t('x-sala-help-step-save') }}</li>
               </ol>
             </div>
           </aside>
+
+          <!-- Lighting section -->
+          <section :class="roomAccentClass(lightingState)" class="panel room-device-card">
+            <div class="panel-head room-card-head">
+              <div>
+                <h2 class="panel-title label-with-help">
+                  <Lightbulb :size="13" :stroke-width="2.3"/>
+                  {{ $t('x-lighting-title') }}
+                  <HelpTooltip :text="$t('x-lighting-tooltip-section')"/>
+                </h2>
+                <p class="room-card-sub">{{ $t('x-lighting-card-subtitle') }}</p>
+              </div>
+              <div class="room-card-controls">
+                <span :class="['room-state', roomStateClass(lightingState)]">{{ roomStateLabel(lightingState) }}</span>
+                <button
+                    :aria-label="$t('x-lighting-title')"
+                    :aria-pressed="lighting.enabled"
+                    :class="['toggle-switch', lighting.enabled && 'on']"
+                    @click="lighting.enabled = !lighting.enabled"
+                >
+                  <div class="toggle-thumb"></div>
+                </button>
+              </div>
+            </div>
+            <div v-if="lighting.enabled" class="panel-body">
+              <div class="form-label label-with-help">
+                <label for="lighting-ha-url">{{ $t('x-lighting-ha-url') }}</label>
+                <HelpTooltip :text="$t('x-lighting-tooltip-ha-url')"/>
+              </div>
+              <input id="lighting-ha-url" v-model.trim="lighting.home_assistant_url" autocomplete="off"
+                     class="form-input mb-3" placeholder="http://homeassistant.local:8123" type="url"/>
+
+              <div class="form-label label-with-help">
+                <label for="lighting-ha-token">{{ $t('x-lighting-ha-token') }}</label>
+                <HelpTooltip :text="$t('x-lighting-tooltip-ha-token')"/>
+              </div>
+              <input id="lighting-ha-token" v-model="lighting.home_assistant_token" autocomplete="off"
+                     class="form-input mb-1" type="password"/>
+              <p v-if="lighting.home_assistant_token_configured" class="section-hint mb-4">
+                {{ $t('x-lighting-ha-token-configured') }}
+              </p>
+
+              <div class="mb-4">
+                <button :disabled="lightingTestLoading" class="btn-ghost" @click="testLighting">
+                  {{ lightingTestLoading ? $t('x-common-testing') : $t('x-lighting-test-connection') }}
+                </button>
+              </div>
+
+              <div class="form-label label-with-help">
+                <span>{{ $t('x-lighting-entities') }}</span>
+                <HelpTooltip :text="$t('x-lighting-tooltip-entities')"/>
+              </div>
+              <div class="icon-action-row mb-3">
+                <IconActionButton
+                    :label="$t('x-lighting-action-detect-entities')"
+                    :loading="lightingEntitiesLoading"
+                    :loading-label="$t('x-lighting-detecting-entities')"
+                    icon="scan"
+                    @click="detectLightingEntities"
+                />
+              </div>
+              <input v-if="lightingEntities.length > 8" v-model="lightingEntityFilter"
+                     :placeholder="$t('x-lighting-entities-filter')" class="form-input mb-2" type="search"/>
+              <div v-if="lightingEntityOptions.length" class="lighting-entity-list mb-4">
+                <label v-for="entity in lightingEntityOptions" :key="entity.entity_id" class="lighting-entity">
+                  <input :aria-label="entity.name" :checked="isLightingEntitySelected(entity.entity_id)" type="checkbox"
+                         @change="toggleLightingEntity(entity.entity_id)"/>
+                  <span class="lighting-entity-name">{{ entity.name }}</span>
+                  <span class="lighting-entity-id">{{ entity.entity_id }}</span>
+                </label>
+              </div>
+              <p v-else class="section-hint mb-4">{{ $t('x-lighting-entities-empty') }}</p>
+
+              <div class="form-label label-with-help">
+                <label for="lighting-on-start">{{ $t('x-lighting-on-start') }}</label>
+                <HelpTooltip :text="$t('x-lighting-tooltip-on-start')"/>
+              </div>
+              <FormSelect id="lighting-on-start" v-model="lighting.on_playback_start"
+                          :options="lightingActionOptions" class="mb-3"/>
+
+              <div class="form-label label-with-help">
+                <label for="lighting-on-stop">{{ $t('x-lighting-on-stop') }}</label>
+                <HelpTooltip :text="$t('x-lighting-tooltip-on-stop')"/>
+              </div>
+              <FormSelect id="lighting-on-stop" v-model="lighting.on_playback_stop"
+                          :options="lightingActionOptions" class="mb-4"/>
+
+              <div class="icon-action-row mb-4">
+                <IconActionButton
+                    :disabled="!lighting.entity_ids.length"
+                    :label="$t('x-lighting-action-turn-on')"
+                    :loading="lightingSwitchLoading === 'turn_on'"
+                    icon="power-on"
+                    @click="switchLighting('turn_on')"
+                />
+                <IconActionButton
+                    :disabled="!lighting.entity_ids.length"
+                    :label="$t('x-lighting-action-turn-off')"
+                    :loading="lightingSwitchLoading === 'turn_off'"
+                    icon="power-off"
+                    @click="switchLighting('turn_off')"
+                />
+              </div>
+
+              <div class="room-card-actions">
+                <button class="btn-ghost" @click="saveLighting">{{ $t('x-lighting-save') }}</button>
+              </div>
+            </div>
+            <div v-else class="panel-body room-disabled-body">
+              <p>{{ $t('x-lighting-disabled-copy') }}</p>
+              <button class="btn-ghost" @click="saveLighting">{{ $t('x-lighting-save') }}</button>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -459,7 +573,7 @@
 <script setup>
 import {computed, nextTick, onMounted, ref, watch} from 'vue'
 import {useI18n} from 'vue-i18n'
-import {Info, Speaker, Tv} from '@lucide/vue'
+import {Info, Lightbulb, Speaker, Tv} from '@lucide/vue'
 import {api} from '../api/index.js'
 import heroBg from '../assets/backgrounds/bg-sala.png'
 import {useToast} from '../composables/useToast.js'
@@ -473,6 +587,7 @@ import {useConfigSectionSave} from '../composables/useConfigSectionSave.js'
 import {useMediaServerBrand} from '../composables/useMediaServerBrand.js'
 import {useActiveMediaServer} from '../composables/useActiveMediaServer.js'
 import {patchSetupReadiness} from '../composables/useSetupReadiness.js'
+import {LIGHTING_ACTIONS, useRoomLighting} from '../composables/useRoomLighting.js'
 
 const {t} = useI18n()
 const toast = useToast()
@@ -909,6 +1024,69 @@ async function saveAv() {
   }
 }
 
+/* Lighting state */
+const {
+  lighting,
+  entities: lightingEntities,
+  entityFilter: lightingEntityFilter,
+  entityOptions: lightingEntityOptions,
+  state: lightingState,
+  testLoading: lightingTestLoading,
+  entitiesLoading: lightingEntitiesLoading,
+  switchLoading: lightingSwitchLoading,
+  load: loadLighting,
+  isSelected: isLightingEntitySelected,
+  toggleEntity: toggleLightingEntity,
+  testConnection: testLightingConnection,
+  detectEntities: detectLightingEntitiesRequest,
+  switchLights,
+  save: saveLightingSection,
+} = useRoomLighting({
+  configWithSection,
+  saveConfigSection,
+  onReadinessChange: (readiness) => patchRoomReadiness('lighting', readiness),
+})
+
+const lightingActionOptions = computed(() =>
+    LIGHTING_ACTIONS.map((action) => ({value: action, label: t(`x-lighting-action-${action}`)}))
+)
+
+async function testLighting() {
+  try {
+    await testLightingConnection()
+    toast.success(t('x-lighting-connection-ok'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
+async function detectLightingEntities() {
+  try {
+    const found = await detectLightingEntitiesRequest()
+    toast.success(t('x-lighting-entities-detected', {count: found.length}))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
+async function switchLighting(action) {
+  try {
+    await switchLights(action)
+    toast.success(t(action === 'turn_on' ? 'x-lighting-turned-on' : 'x-lighting-turned-off'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
+async function saveLighting() {
+  try {
+    await saveLightingSection()
+    toast.success(t('x-common-saved'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -918,6 +1096,7 @@ onMounted(async () => {
     originalTv.value = {...(data.tv || {})}
     av.value = {...(data.av || {})}
     originalAv.value = {...(data.av || {})}
+    loadLighting(data)
     originalRoomReadiness.value = {
       tv: data.config_readiness?.tv || null,
       av: data.config_readiness?.av || null,
@@ -1133,6 +1312,48 @@ onMounted(async () => {
 
 .room-state--disabled {
   color: var(--text-subtle);
+}
+
+.lighting-entity-list {
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(7, 11, 13, 0.32);
+}
+
+.lighting-entity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.lighting-entity:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lighting-entity input {
+  grid-row: span 2;
+}
+
+.lighting-entity-name {
+  color: var(--text-main);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.lighting-entity-id {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
 }
 
 .room-help-column {

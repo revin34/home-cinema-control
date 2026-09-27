@@ -23,6 +23,7 @@ function shouldNotifyConfigChanged(method, path) {
         || path === '/av/power-on'
         || path === '/av/power-off'
         || path === '/av/switch-input'
+        || path === '/lighting/test-connection'
         || path === '/migration/apply'
         || path === '/migration/skip'
         || path === '/migration/import-legacy'
@@ -135,4 +136,10 @@ export const api = {
     avPowerOn: (config) => request('POST', '/av/power-on', config),
     avPowerOff: (config) => request('POST', '/av/power-off', config),
     avSwitchInput: (config) => request('POST', '/av/switch-input', config),
+
+    // lighting (Home Assistant)
+    testLightingConnection: (config) => request('POST', '/lighting/test-connection', config),
+    getLightingEntities: (config) => request('POST', '/lighting/entities', config),
+    lightingTurnOn: (config) => request('POST', '/lighting/turn-on', config),
+    lightingTurnOff: (config) => request('POST', '/lighting/turn-off', config),
 }

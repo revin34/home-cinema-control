@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from home_cinema_control.devices.lighting.factory import (
+    create_lighting_controller_or_none,
+)
 from home_cinema_control.devices.oppo.playback_command_control import (
     create_oppo_total_seconds_reader,
 )
@@ -127,6 +130,7 @@ def create_playback_orchestrator_wiring(
             config,
             media_player=startup_wiring.media_player,
         ),
+        room_lighting=create_lighting_controller_or_none(config),
     )
 
     return PlaybackOrchestratorWiring(
